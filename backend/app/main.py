@@ -12,6 +12,7 @@ from app.config import settings
 from app.api.v1 import health
 from app.core.spire import spire_client
 from app.core.vault import vault_client
+from app.core.database import db_manager
 
 # Configure logging
 logging.basicConfig(
@@ -49,16 +50,20 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ Vault initialization failed: {e}")
         raise
 
-    # TODO: Initialize database pool (Phase 4)
-    # TODO: Start credential rotation task (Phase 4)
+    # Initialize database pool
+    try:
+        await db_manager.connect()
+        logger.info("✅ Database initialized")
+    except Exception as e:
+        logger.error(f"❌ Database initialization failed: {e}")
+        raise
 
     yield
 
     # Shutdown
     logger.info("Shutting down application...")
+    await db_manager.close()
     await spire_client.close()
-    # TODO: Close database pool (Phase 4)
-    # TODO: Revoke Vault lease (Phase 4)
     logger.info("Shutdown complete")
 
 

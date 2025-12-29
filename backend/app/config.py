@@ -49,9 +49,10 @@ class Settings(BaseSettings):
     DB_NAME: str = "appdb"
     # Dynamic credentials from Vault - no static username/password
     DB_POOL_SIZE: int = 10
-    DB_POOL_MAX_OVERFLOW: int = 10
+    DB_MAX_OVERFLOW: int = 10
     DB_POOL_TIMEOUT: int = 30
     DB_CREDENTIAL_ROTATION_INTERVAL: int = 3000  # 50 minutes in seconds
+    DB_ECHO: bool = False  # SQLAlchemy SQL logging
 
     # JWT Authentication
     JWT_SECRET_KEY: str = os.getenv(

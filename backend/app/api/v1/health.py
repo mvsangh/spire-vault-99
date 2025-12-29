@@ -6,6 +6,7 @@ from fastapi import APIRouter, status
 from pydantic import BaseModel
 from app.core.spire import spire_client
 from app.core.vault import vault_client
+from app.core.database import db_manager
 
 router = APIRouter()
 
@@ -60,11 +61,13 @@ async def readiness_check():
     # Check Vault authentication
     vault_status = "ready" if vault_client.is_authenticated() else "not_ready"
 
-    # TODO: Check database connection (Phase 4)
+    # Check database connection
+    database_status = "ready" if await db_manager.is_healthy() else "not_ready"
 
     return HealthResponse(
-        status="ready" if (spire_status == "ready" and vault_status == "ready") else "not_ready",
+        status="ready" if (spire_status == "ready" and vault_status == "ready" and database_status == "ready") else "not_ready",
         version=settings.APP_VERSION,
         spire=spire_status,
         vault=vault_status,
+        database=database_status,
     )
