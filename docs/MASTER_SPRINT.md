@@ -928,7 +928,7 @@ All users authenticate via traditional PostgreSQL authentication:
 | charles | charles99 | charles.boyle@99.precinct | Detective |
 | gina | gina99 | gina.linetti@99.precinct | Civilian Admin |
 
-**Note:** User passwords are stored securely in PostgreSQL (bcrypt hashed). Vault is NOT used for user authentication - it is used exclusively for backend workload authentication and secrets management.
+**Note:** User passwords are stored securely in PostgreSQL (bcrypt hashed). OpenBao is NOT used for user authentication - it is used exclusively for backend workload authentication and secrets management.
 
 ---
 
@@ -968,11 +968,11 @@ All users authenticate via traditional PostgreSQL authentication:
 The project is complete when:
 
 - ✅ All infrastructure deployed and healthy on kind cluster
-- ✅ Backend application running with SPIRE + Vault integration
+- ✅ Backend application running with SPIRE + OpenBao integration
 - ✅ Frontend application with full UI functionality
 - ✅ User authentication working (login/registration)
-- ✅ Backend authenticates to Vault using SPIRE certificates (mTLS)
-- ✅ GitHub integration functional (store + retrieve tokens from Vault)
+- ✅ Backend authenticates to OpenBao using SPIRE certificates (mTLS)
+- ✅ GitHub integration functional (store + retrieve tokens from OpenBao)
 - ✅ Dynamic database credentials working and rotating
 - ✅ Cilium mTLS and SPIFFE policies enforced
 - ✅ All demo users can login and use features
@@ -992,20 +992,20 @@ The project is complete when:
 
 ### **Part 2: Backend Workload Authentication (THE CORE DEMO - 5 minutes)**
 4. Show backend pod getting SPIRE SVID (X.509 certificate)
-5. Demonstrate backend authenticating to Vault using SPIRE cert (mTLS)
-6. Show Vault logs validating the SPIFFE ID
+5. Demonstrate backend authenticating to OpenBao using SPIRE cert (mTLS)
+6. Show OpenBao logs validating the SPIFFE ID
 7. Explain zero-trust workload identity
 
 ### **Part 3: GitHub Integration - Static Secrets (5 minutes)**
 8. Configure GitHub API token via UI
-9. Show backend storing token in Vault (using SPIRE auth)
-10. Retrieve token from Vault
+9. Show backend storing token in OpenBao (using SPIRE auth)
+10. Retrieve token from OpenBao
 11. Fetch GitHub repositories using the token
 12. Display repos in UI
 
 ### **Part 4: Database Access - Dynamic Secrets (5 minutes)**
-13. Show backend requesting DB credentials from Vault
-14. Vault creates temporary PostgreSQL user (v-token-backend-xyz)
+13. Show backend requesting DB credentials from OpenBao
+14. OpenBao creates temporary PostgreSQL user (v-token-backend-xyz)
 15. Backend uses temp credentials to query database
 16. Show credential expiration/rotation
 17. Verify temp user deleted after TTL
@@ -1014,7 +1014,7 @@ The project is complete when:
 18. Show Hubble flow with SPIFFE IDs
 19. Demonstrate mTLS between services
 20. Show SPIFFE-based network policy enforcement
-21. Attempt unauthorized Vault access from frontend pod (denied)
+21. Attempt unauthorized OpenBao access from frontend pod (denied)
 
 ### **Part 6: Q&A**
 22. Answer technical questions
@@ -1054,10 +1054,13 @@ After reviewing this Master Sprint:
 - SPIRE Documentation: https://spiffe.io/docs/latest/
 - SPIRE Kubernetes Quickstart: https://spiffe.io/docs/latest/try/getting-started-k8s/
 
-### **HashiCorp Vault**
-- Vault Documentation: https://developer.hashicorp.com/vault/docs
-- Vault Database Secrets Engine: https://developer.hashicorp.com/vault/docs/secrets/databases
-- Vault Kubernetes Auth: https://developer.hashicorp.com/vault/docs/auth/kubernetes
+### **OpenBao**
+- OpenBao Official Website: https://openbao.org/
+- OpenBao Documentation: https://openbao.org/docs/
+- OpenBao GitHub Repository: https://github.com/openbao/openbao
+- OpenBao Database Secrets Engine: https://openbao.org/docs/secrets/databases/postgresql/
+- OpenBao Cert Auth Method: https://openbao.org/docs/auth/cert/
+- OpenBao KV Secrets Engine: https://openbao.org/docs/secrets/kv/
 
 ### **Cilium**
 - Cilium Documentation: https://docs.cilium.io/
@@ -1065,17 +1068,19 @@ After reviewing this Master Sprint:
 - Cilium + SPIRE: https://docs.cilium.io/en/stable/network/servicemesh/mutual-authentication/
 
 ### **Integration Guides**
-- SPIRE + Vault: https://spiffe.io/docs/latest/keyless/vault/
+- SPIRE + Vault/OpenBao (OIDC): https://spiffe.io/docs/latest/keyless/vault/
 - Cilium + SPIFFE: https://isovalent.com/blog/post/cilium-spiffe-spire/
+- OpenBao vs HashiCorp Vault: https://digitalis.io/post/choosing-a-secrets-storage-hashicorp-vault-vs-openbao
 
 ---
 
-**Document Version:** 2.1
+**Document Version:** 2.2
 **Last Updated:** 2025-12-29
 **Author:** Development Team
 **Status:** ✅ Master Sprint Complete - Best Practice Architecture - Ready for Sub-Sprint 1
 
 **Changelog:**
+- v2.2 (2025-12-29): Migrated from HashiCorp Vault to OpenBao (open-source fork, MPL 2.0 license)
 - v2.1 (2025-12-29): Updated database connection strategy to use connection pool with periodic credential rotation (best practice)
 - v2.0 (2025-12-29): Added Application Architecture, Technical Configuration Details, Database Schema, Application Flow Diagrams
 - v1.0 (2025-12-29): Initial master sprint with sub-sprints overview

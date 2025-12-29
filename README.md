@@ -13,7 +13,7 @@ A comprehensive **zero-trust security platform** demonstrating production-grade 
 This platform showcases a complete zero-trust architecture implementation using industry-standard tools:
 
 - 🔐 **SPIRE/SPIFFE** - Workload identity and authentication
-- 🔑 **HashiCorp Vault** - Secrets management (static + dynamic)
+- 🔑 **OpenBao** - Secrets management (static + dynamic)
 - 🌐 **Cilium** - Service mesh with SPIFFE-based network policies
 - ☸️ **Kubernetes** - Container orchestration (kind cluster)
 - 🐘 **PostgreSQL** - Database with dynamic credentials
@@ -34,7 +34,7 @@ This platform showcases a complete zero-trust architecture implementation using 
 - X.509 certificate-based service authentication
 - Automatic certificate rotation (1-hour TTL)
 
-✅ **Secrets Management (Vault)**
+✅ **Secrets Management (OpenBao)**
 - **Static secrets:** GitHub API tokens stored securely
 - **Dynamic secrets:** PostgreSQL credentials generated on-demand
 - Automatic credential rotation every 50 minutes
@@ -43,7 +43,7 @@ This platform showcases a complete zero-trust architecture implementation using 
 ✅ **Service Mesh Security (Cilium)**
 - Automatic mTLS between all services
 - SPIFFE-based network policies (not just pod labels!)
-- Only backend with correct SPIFFE ID can access Vault/DB
+- Only backend with correct SPIFFE ID can access OpenBao/DB
 
 ✅ **Real Application**
 - User authentication (PostgreSQL + JWT)
@@ -64,15 +64,15 @@ This platform showcases a complete zero-trust architecture implementation using 
 
 2. **Backend** - Python FastAPI
    - SPIRE client (obtains X.509-SVID)
-   - Vault client (mTLS authentication)
+   - OpenBao client (mTLS authentication)
    - GitHub API integration
    - PostgreSQL operations
 
 ### **Infrastructure**
 
 - **SPIRE:** Identity provider (trust domain: `spiffe://demo.local`)
-- **Vault:** Secrets manager (cert auth + KV v2 + database engine)
-- **PostgreSQL:** Database (credentials managed by Vault)
+- **OpenBao:** Secrets manager (cert auth + KV v2 + database engine)
+- **PostgreSQL:** Database (credentials managed by OpenBao)
 - **Cilium:** Service mesh (mTLS + SPIFFE policies)
 
 ### **Architecture Diagram**
@@ -82,7 +82,7 @@ This platform showcases a complete zero-trust architecture implementation using 
 │  Kubernetes Cluster (kind)                              │
 │                                                         │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │
-│  │ SPIRE Server │  │    Vault     │  │  PostgreSQL  │ │
+│  │ SPIRE Server │  │   OpenBao    │  │  PostgreSQL  │ │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘ │
 │         │                  │                  │         │
 │  ┌──────▼──────────────────▼──────────────────▼──────┐ │
@@ -94,7 +94,7 @@ This platform showcases a complete zero-trust architecture implementation using 
 │  │  (FastAPI)      │              │  (Next.js)     │   │
 │  │                 │              │                │   │
 │  │ 1. Get SVID     │              │ - Auth UI      │   │
-│  │ 2. Auth Vault   │              │ - GitHub pages │   │
+│  │ 2. Auth OpenBao │              │ - GitHub pages │   │
 │  │ 3. Get secrets  │              │                │   │
 │  │ 4. Call GitHub  │              │                │   │
 │  └─────────────────┘              └────────────────┘   │
@@ -125,7 +125,7 @@ This platform showcases a complete zero-trust architecture implementation using 
 This will:
 1. Create kind cluster
 2. Deploy SPIRE (server + agent)
-3. Deploy Vault and configure it
+3. Deploy OpenBao and configure it
 4. Deploy PostgreSQL
 5. Install Cilium with SPIRE integration
 6. Deploy frontend and backend applications
@@ -140,7 +140,7 @@ http://localhost:3000
 # Backend API
 http://localhost:8000
 
-# Vault UI (dev mode)
+# OpenBao UI (dev mode)
 http://localhost:8200
 ```
 
@@ -159,7 +159,7 @@ All users authenticate via PostgreSQL (bcrypt hashed passwords):
 | **charles** | charles99 | charles.boyle@99.precinct | Detective |
 | **gina** | gina99 | gina.linetti@99.precinct | Civilian Admin |
 
-> **Note:** Passwords are stored securely in PostgreSQL (bcrypt hashed). Vault is NOT used for user authentication - it's used exclusively for backend workload authentication and secrets management.
+> **Note:** Passwords are stored securely in PostgreSQL (bcrypt hashed). OpenBao is NOT used for user authentication - it's used exclusively for backend workload authentication and secrets management.
 
 ---
 
@@ -171,20 +171,20 @@ All users authenticate via PostgreSQL (bcrypt hashed passwords):
 
 ### **Part 2: Backend Workload Authentication - THE CORE DEMO (5 min)**
 - Show backend pod getting SPIRE SVID (X.509 certificate)
-- Demonstrate backend authenticating to Vault using SPIRE cert (mTLS)
-- Show Vault logs validating the SPIFFE ID
+- Demonstrate backend authenticating to OpenBao using SPIRE cert (mTLS)
+- Show OpenBao logs validating the SPIFFE ID
 - Explain zero-trust workload identity
 
 ### **Part 3: GitHub Integration - Static Secrets (5 min)**
 - Configure GitHub API token via UI
-- Show backend storing token in Vault (using SPIRE auth)
-- Retrieve token from Vault
+- Show backend storing token in OpenBao (using SPIRE auth)
+- Retrieve token from OpenBao
 - Fetch GitHub repositories using the token
 - Display repos in UI
 
 ### **Part 4: Database Access - Dynamic Secrets (5 min)**
-- Show backend requesting DB credentials from Vault
-- Vault creates temporary PostgreSQL user (v-token-backend-xyz)
+- Show backend requesting DB credentials from OpenBao
+- OpenBao creates temporary PostgreSQL user (v-token-backend-xyz)
 - Backend uses temp credentials to query database
 - Show credential expiration/rotation
 - Verify temp user deleted after TTL
@@ -193,7 +193,7 @@ All users authenticate via PostgreSQL (bcrypt hashed passwords):
 - Show Hubble flow with SPIFFE IDs
 - Demonstrate mTLS between services
 - Show SPIFFE-based network policy enforcement
-- Attempt unauthorized Vault access from frontend pod (denied)
+- Attempt unauthorized OpenBao access from frontend pod (denied)
 
 ### **Part 6: Q&A (2 min)**
 - Answer technical questions
@@ -216,7 +216,7 @@ spire-vault-99/
 ├── infrastructure/                # Kubernetes manifests
 │   ├── kind-config.yaml
 │   ├── spire/
-│   ├── vault/
+│   ├── openbao/
 │   ├── postgres/
 │   └── cilium/
 ├── backend/                       # Python FastAPI app
@@ -298,11 +298,11 @@ spire-vault-99/
 ### **Network Security**
 - ✅ mTLS between all services (Cilium)
 - ✅ SPIFFE-based network policies
-- ✅ Only backend can access Vault/DB
+- ✅ Only backend can access OpenBao/DB
 - ✅ Frontend isolated from sensitive services
 
 ### **Audit & Compliance**
-- ✅ Vault audit logs (all secret access)
+- ✅ OpenBao audit logs (all secret access)
 - ✅ SPIRE audit logs (all SVID issuance)
 - ✅ PostgreSQL logs (dynamic user creation/deletion)
 
@@ -312,13 +312,13 @@ spire-vault-99/
 
 ### **Database Connection Strategy**
 - ✅ Connection pooling (5-20 connections)
-- ✅ Vault-issued dynamic credentials
+- ✅ OpenBao-issued dynamic credentials
 - ✅ Graceful rotation (no downtime)
 - ✅ Retry logic with exponential backoff
 
 ### **Secrets Management**
 - ✅ Static secrets: GitHub tokens (user-provided)
-- ✅ Dynamic secrets: DB credentials (Vault-generated)
+- ✅ Dynamic secrets: DB credentials (OpenBao-generated)
 - ✅ Separation of concerns (identity vs secrets)
 
 ### **Production-Ready Patterns**
@@ -352,10 +352,12 @@ spire-vault-99/
 - [SPIRE Documentation](https://spiffe.io/docs/latest/)
 - [SPIRE Kubernetes Quickstart](https://spiffe.io/docs/latest/try/getting-started-k8s/)
 
-### **HashiCorp Vault**
-- [Vault Documentation](https://developer.hashicorp.com/vault/docs)
-- [Vault Database Secrets Engine](https://developer.hashicorp.com/vault/docs/secrets/databases)
-- [Vault Cert Auth](https://developer.hashicorp.com/vault/docs/auth/cert)
+### **OpenBao**
+- [OpenBao Official Website](https://openbao.org/)
+- [OpenBao Documentation](https://openbao.org/docs/)
+- [OpenBao Database Secrets Engine](https://openbao.org/docs/secrets/databases/postgresql/)
+- [OpenBao Cert Auth Method](https://openbao.org/docs/auth/cert/)
+- [OpenBao vs HashiCorp Vault](https://digitalis.io/post/choosing-a-secrets-storage-hashicorp-vault-vs-openbao)
 
 ### **Cilium**
 - [Cilium Documentation](https://docs.cilium.io/)
@@ -363,7 +365,7 @@ spire-vault-99/
 - [Cilium + SPIRE Integration](https://docs.cilium.io/en/stable/network/servicemesh/mutual-authentication/)
 
 ### **Integration Guides**
-- [SPIRE + Vault](https://spiffe.io/docs/latest/keyless/vault/)
+- [SPIRE + Vault/OpenBao](https://spiffe.io/docs/latest/keyless/vault/)
 - [Cilium + SPIFFE](https://isovalent.com/blog/post/cilium-spiffe-spire/)
 
 ---
@@ -404,7 +406,7 @@ For questions or issues:
 
 - **Brooklyn Nine-Nine** - For making security fun (and organized)
 - **CNCF SPIFFE/SPIRE** - For workload identity done right
-- **HashiCorp Vault** - For secrets management excellence
+- **OpenBao Community** - For open-source secrets management excellence
 - **Cilium** - For next-gen service mesh
 - **The 99th Precinct** - For inspiration
 
