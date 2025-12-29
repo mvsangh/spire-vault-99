@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbao
+  namespace: openbao
+spec:
+  type: NodePort
+  ports:
+    - name: http
+      port: 8200
+      targetPort: 8200
+      nodePort: 30002
+      protocol: TCP
+  selector:
+    app: openbao

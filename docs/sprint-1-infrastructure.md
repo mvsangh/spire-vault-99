@@ -941,38 +941,81 @@ Serial number     : ...
 
 ---
 
-### 📋 EXECUTION LOG - Phase 3 (Partial)
+### 📋 EXECUTION LOG - Phase 3
 
 **Date:** 2025-12-29
-**Status:** ⏸️ PAUSED - Dependency Issue Discovered
+**Status:** ✅ COMPLETED
 
 **Summary of Implementation:**
-- Created SPIRE Server ServiceAccount, ClusterRole, and ClusterRoleBinding
-- Created SPIRE Server ConfigMap with trust domain "demo.local"
+- Created SPIRE Server ServiceAccount, ClusterRole, ClusterRoleBinding, and Role for ConfigMap access
+- Created SPIRE Server ConfigMap with trust domain "demo.local" and k8sbundle notifier
 - Created SPIRE Server StatefulSet and Service
-- Applied all SPIRE server manifests successfully
+- Created spire-bundle ConfigMap for trust bundle distribution
+- Created SPIRE Agent ServiceAccount, ClusterRole, and ClusterRoleBinding
+- Created SPIRE Agent ConfigMap with trust_bundle_path (best practice)
+- Created SPIRE Agent DaemonSet
+- All SPIRE components deployed successfully
 
 **Issues Faced:**
-- **Critical Dependency Issue:** SPIRE server pod cannot be scheduled
-- Pod status: Pending with error "0/3 nodes are available: 2 node(s) had untolerated taint {node.kubernetes.io/not-ready}"
-- Worker nodes have `not-ready` taint because CNI (Cilium) is not installed yet
-- Cannot proceed with SPIRE Agent deployment without CNI
+1. **Initial Dependency Issue:** SPIRE server pod couldn't be scheduled due to CNI not installed
+   - **Resolution:** Completed Phase 6 (Cilium) first to make nodes Ready
+
+2. **RBAC Permission Error:** SPIRE server crashed with "configmaps 'spire-bundle' is forbidden"
+   - **Root Cause:** ServiceAccount lacked ConfigMap permissions for k8sbundle notifier
+   - **Resolution:** Added Role and RoleBinding with ConfigMap permissions (get, list, create, update, patch)
+
+3. **ConfigMap Namespace Issue:** k8sbundle notifier tried to create ConfigMap in "spire" namespace
+   - **Root Cause:** k8sbundle plugin_data was empty, defaulting to "spire" namespace
+   - **Resolution:** Added `namespace = "spire-system"` to k8sbundle plugin_data
+
+4. **ConfigMap Not Found Error:** k8sbundle notifier failed with "configmaps 'spire-bundle' not found"
+   - **Root Cause:** Notifier expected ConfigMap to exist before updating it
+   - **Resolution:** Created empty spire-bundle ConfigMap, which server then populated
+
+5. **Agent Trust Bundle Error:** Agents failed with "trust_bundle_path or trust_bundle_url must be configured"
+   - **Root Cause:** Initially attempted to use insecure_bootstrap (rejected as bad practice)
+   - **Resolution:** Followed official best practices:
+     - Added `trust_bundle_path = "/run/spire/bundle/bundle.crt"` to agent config
+     - Mounted spire-bundle ConfigMap as volume at `/run/spire/bundle`
+     - Removed insecure_bootstrap configuration
 
 **Important Decisions/Changes:**
-- **Phase Order Change Required:** Phase 6 (Cilium Installation) must be completed BEFORE Phases 3, 4, and 5
-- This is a chicken-and-egg problem: no CNI → nodes not ready → pods can't be scheduled
-- New recommended order: Phase 1 → Phase 2 → **Phase 6** → Phase 3 → Phase 4 → Phase 5 → Phase 7
+- **Phase Order:** Executed Phase 6 before Phase 3 (CNI required for pod scheduling)
+- **Trust Bundle Distribution:** Implemented official best practice using k8sbundle ConfigMap (NOT insecure_bootstrap)
+- **RBAC:** Separated cluster-scoped (ClusterRole) and namespace-scoped (Role) permissions
+- **Configuration:** Used proper trust bundle path instead of insecure bootstrap flag
+
+**Best Practices Followed:**
+- ✅ Trust bundle distributed via k8sbundle notifier and ConfigMap mount
+- ✅ No insecure_bootstrap flag used
+- ✅ Proper RBAC with least privilege principle
+- ✅ Health probes configured for server and agents
+- ✅ Persistent storage for SPIRE server (1Gi PVC)
+
+**Deployment Details:**
+- SPIRE Server: StatefulSet with 1 replica, 1Gi PVC, health endpoints enabled
+- SPIRE Agents: DaemonSet with 2 agents (one per worker node)
+- Trust Domain: demo.local
+- Node Attestation: k8s_psat (Projected Service Account Token)
+- Workload Attestation: k8s (pod metadata)
+
+**Verification Results:**
+- SPIRE Server: Healthy (healthcheck passed)
+- SPIRE Agents: 2/2 registered with server
+- SPIFFE IDs: `spiffe://demo.local/spire/agent/k8s_psat/precinct-99/<uuid>`
+- Agent Status: Can re-attest, expiration time ~1 hour
+- Socket Path: /run/spire/sockets/agent.sock (mounted via hostPath)
 
 **Files Created:**
-- infrastructure/spire/server-account.yaml
-- infrastructure/spire/server-configmap.yaml
+- infrastructure/spire/server-account.yaml (updated with Role for ConfigMaps)
+- infrastructure/spire/server-configmap.yaml (updated with k8sbundle namespace)
 - infrastructure/spire/server-statefulset.yaml
 - infrastructure/spire/server-service.yaml
+- infrastructure/spire/agent-account.yaml
+- infrastructure/spire/agent-configmap.yaml
+- infrastructure/spire/agent-daemonset.yaml
 
-**Next Steps:**
-1. Complete Phase 6: Cilium Installation first
-2. Once nodes are Ready, resume Phase 3 to complete SPIRE deployment
-3. Then proceed with Phase 4 (OpenBao) and Phase 5 (PostgreSQL)
+**Next Phase:** Phase 4 - OpenBao Deployment
 
 ---
 
@@ -1164,6 +1207,58 @@ kubectl exec -n openbao deploy/openbao -- \
 **Success Criteria:**
 - ✅ OpenBao status shows unsealed
 - ✅ Can write and read secrets
+
+---
+
+### 📋 EXECUTION LOG - Phase 4
+
+**Date:** 2025-12-29
+**Status:** ✅ COMPLETED
+
+**Summary of Implementation:**
+- Created OpenBao Deployment manifest (dev mode)
+- Created OpenBao Service manifest (NodePort for UI access)
+- Deployed OpenBao to openbao namespace
+- Verified OpenBao initialization and accessibility
+
+**Issues Faced:**
+- None - deployment was straightforward
+
+**Important Decisions/Changes:**
+- **Dev Mode:** Used dev mode for demo purposes (NOT for production)
+  - In-memory storage (data lost on pod restart)
+  - Auto-unsealed (no manual unseal required)
+  - Root token hardcoded as "root"
+- **Service Type:** NodePort for easy localhost access on port 8200
+- **Port Mapping:** Mapped to nodePort 30002 (configured in kind-config.yaml)
+
+**Deployment Details:**
+- Image: quay.io/openbao/openbao:2.0.1
+- Replicas: 1 (single instance)
+- Storage: In-memory (dev mode)
+- Root Token: "root" (hardcoded for demo)
+- API Address: http://0.0.0.0:8200
+- Log Level: debug
+
+**Verification Results:**
+- Pod Status: 1/1 Running
+- Health Status: Initialized=true, Sealed=false
+- API Response: 200 OK from /v1/sys/health
+- Localhost Access: ✅ Accessible at http://localhost:8200
+- KV Secrets Engine: Pre-enabled in dev mode
+- Cluster ID: 459e6d4f-4f79-8f82-ccb9-e19d993b6704
+
+**Testing Performed:**
+- ✅ Health check from within cluster: `curl http://openbao.openbao.svc.cluster.local:8200/v1/sys/health`
+- ✅ Health check from localhost: `curl http://localhost:8200/v1/sys/health`
+- ✅ Status check: `kubectl exec -n openbao deploy/openbao -- bao status`
+- ✅ All checks passed
+
+**Files Created:**
+- infrastructure/openbao/deployment.yaml
+- infrastructure/openbao/service.yaml
+
+**Next Phase:** Phase 5 - PostgreSQL Deployment
 
 ---
 
@@ -1529,6 +1624,82 @@ kubectl exec -it -n 99-apps postgresql-0 -- \
 - ✅ All tables created (users, github_integrations, audit_log)
 - ✅ 6 demo users seeded
 - ✅ Password hashes stored correctly
+
+---
+
+### 📋 EXECUTION LOG - Phase 5
+
+**Date:** 2025-12-29
+**Status:** ✅ COMPLETED
+
+**Summary of Implementation:**
+- Created PostgreSQL init script ConfigMap with schema and demo data
+- Created PostgreSQL StatefulSet with persistent storage
+- Created PostgreSQL Service (ClusterIP)
+- Deployed PostgreSQL to 99-apps namespace
+- Verified database initialization and demo users seeded
+
+**Issues Faced:**
+- None - deployment was straightforward
+
+**Important Decisions/Changes:**
+- **Init Script Approach:** Used ConfigMap YAML manifest (best practice for GitOps) instead of `kubectl create configmap`
+- **Storage:** 1Gi PVC for demo purposes (production would need more)
+- **Demo Users:** Used real bcrypt hashes with cost factor 12
+- **Password Format:** `<username>99` pattern (e.g., jake99, amy99) for easy demo testing
+- **Tables:** Created all required tables (users, github_integrations, audit_log) with proper indexes
+
+**Deployment Details:**
+- Image: postgres:15-alpine
+- Replicas: 1 (StatefulSet)
+- Storage: 1Gi PVC (ReadWriteOnce)
+- Database: appdb
+- Admin User: postgres
+- Admin Password: postgres (demo only - NOT for production)
+- Init Script: Mounted via ConfigMap at /docker-entrypoint-initdb.d
+
+**Database Schema:**
+- **users table:** id, username, email, password_hash, created_at, updated_at
+- **github_integrations table:** id, user_id, is_configured, configured_at, last_accessed
+- **audit_log table:** id, user_id, action, resource, timestamp, details (JSONB)
+- **Indexes:** Created on username, user_id, timestamp for query performance
+- **Extensions:** pgcrypto enabled
+
+**Demo Users Seeded:**
+1. jake (jake.peralta@99.precinct) - password: jake99
+2. amy (amy.santiago@99.precinct) - password: amy99
+3. rosa (rosa.diaz@99.precinct) - password: rosa99
+4. terry (terry.jeffords@99.precinct) - password: terry99
+5. charles (charles.boyle@99.precinct) - password: charles99
+6. gina (gina.linetti@99.precinct) - password: gina99
+
+**Verification Results:**
+- Pod Status: 1/1 Running
+- PVC Status: Bound (1Gi)
+- Database: appdb created and ready
+- Tables: 3 tables created successfully
+- Demo Users: 6 users seeded with bcrypt hashed passwords
+- Initialization Logs:
+  ```
+  NOTICE: Database initialized successfully!
+  NOTICE: Demo users created: jake, amy, rosa, terry, charles, gina
+  NOTICE: Password format: <username>99 (e.g., jake99)
+  ```
+
+**Testing Performed:**
+- ✅ Pod readiness check: `kubectl wait --for=condition=Ready pod/postgresql-0 -n 99-apps`
+- ✅ User count query: `SELECT COUNT(*) FROM users;` returned 6
+- ✅ User listing: `SELECT username, email FROM users;` returned all 6 users
+- ✅ Table structure: `\dt` showed all 3 tables
+- ✅ Connectivity from cluster: `psql -h postgresql.99-apps.svc.cluster.local` successful
+- ✅ All checks passed
+
+**Files Created:**
+- infrastructure/postgres/init-configmap.yaml
+- infrastructure/postgres/statefulset.yaml
+- infrastructure/postgres/service.yaml
+
+**Next Phase:** Phase 7 - Integration Verification & Testing (Phase 6 already completed earlier)
 
 ---
 
@@ -2056,6 +2227,135 @@ chmod +x scripts/helpers/verify-infrastructure.sh
 
 ---
 
+### 📋 EXECUTION LOG - Phase 7
+
+**Date:** 2025-12-29
+**Status:** ✅ COMPLETED
+
+**Summary of Implementation:**
+- Verified all infrastructure pods are running and healthy
+- Tested SPIRE server and agent connectivity
+- Tested OpenBao accessibility from cluster and localhost
+- Tested PostgreSQL connectivity and data integrity
+- Verified Cilium network connectivity
+- Created and executed infrastructure verification script
+- All integration tests passed successfully
+
+**Issues Faced:**
+- None - all components integrated successfully
+
+**Testing Performed:**
+
+**1. Pod Health Verification:**
+- ✅ All pods Running in all namespaces
+- ✅ SPIRE: spire-server-0 (1/1), spire-agent-8n4ng (1/1), spire-agent-m44dg (1/1)
+- ✅ OpenBao: openbao-756b9cc59b-mrkhv (1/1)
+- ✅ PostgreSQL: postgresql-0 (1/1)
+- ✅ Cilium: 3 agents + 1 operator (all Running)
+
+**2. Cluster Node Verification:**
+- ✅ All 3 nodes Ready (precinct-99-control-plane, precinct-99-worker, precinct-99-worker2)
+- ✅ Cilium CNI operational on all nodes
+
+**3. SPIRE Integration Testing:**
+- ✅ Server health check: `spire-server healthcheck` returned "Server is healthy"
+- ✅ Agent registration: 2 agents attested and registered
+- ✅ SPIFFE IDs: `spiffe://demo.local/spire/agent/k8s_psat/precinct-99/*`
+- ✅ Trust bundle distribution: spire-bundle ConfigMap populated with X.509 certificate
+- ✅ Agent socket paths: /run/spire/sockets/agent.sock mounted on worker nodes
+
+**4. OpenBao Integration Testing:**
+- ✅ Health check from cluster: `curl http://openbao.openbao.svc.cluster.local:8200/v1/sys/health`
+  - Response: `{"initialized":true,"sealed":false,"version":"2.0.1",...}`
+- ✅ Health check from localhost: `curl http://localhost:8200/v1/sys/health`
+  - Response: Initialized=true, Sealed=false
+- ✅ Status check: `bao status` showed unsealed and ready
+- ✅ NodePort access: Port 30002 working correctly
+
+**5. PostgreSQL Integration Testing:**
+- ✅ Connectivity from cluster: `psql -h postgresql.99-apps.svc.cluster.local -U postgres`
+- ✅ User count query: Returned 6 users
+- ✅ Data integrity: All demo users present with correct emails
+- ✅ Table verification: users, github_integrations, audit_log all exist
+- ✅ PVC: 1Gi volume bound and mounted
+
+**6. Cilium Network Testing:**
+- ✅ Pod-to-pod communication: Successfully reached OpenBao from test pod
+- ✅ Service DNS resolution: All service FQDNs resolving correctly
+- ✅ Cilium agents: 3/3 Running on all nodes
+- ✅ Cilium operator: 1/1 Running
+- ✅ Hubble Relay: 1/1 Running (observability enabled)
+- ✅ Hubble UI: 2/2 Running (dashboard available)
+
+**7. Port Forwarding Verification:**
+- ✅ localhost:8200 → OpenBao (NodePort 30002)
+- ✅ Can access OpenBao UI from browser
+- ✅ Can login with root token
+
+**Infrastructure Verification Script:**
+- Created: `scripts/helpers/verify-infrastructure.sh`
+- Made executable: `chmod +x`
+- Execution result: ✅ All checks passed
+- Script output summary:
+  ```
+  ☸️  3 nodes Ready
+  📦 All pods Running in spire-system, openbao, 99-apps
+  🔐 SPIRE server healthy, 2 agents found
+  🔑 OpenBao initialized and unsealed
+  🐘 PostgreSQL: 6 demo users seeded
+  🌐 Cilium: 3 agents + 1 operator running
+  ✅ Infrastructure verification complete!
+  ```
+
+**Completion Checklist Results:**
+
+**Infrastructure Health:** ✅
+- ✅ All pods Running (SPIRE, OpenBao, PostgreSQL, Cilium)
+- ✅ All PVCs Bound (spire-data-spire-server-0, postgres-data-postgresql-0)
+- ✅ All services have ClusterIP assigned
+
+**SPIRE Verification:** ✅
+- ✅ SPIRE server healthy
+- ✅ SPIRE agents registered (2 agents)
+- ✅ Agent attestation working (k8s_psat)
+- ✅ Trust bundle distribution functional
+
+**OpenBao Verification:** ✅
+- ✅ OpenBao unsealed and initialized
+- ✅ API accessible from cluster and localhost
+- ✅ UI accessible at http://localhost:8200
+- ✅ Can login with token "root"
+
+**PostgreSQL Verification:** ✅
+- ✅ Database `appdb` created
+- ✅ All tables exist (users, github_integrations, audit_log)
+- ✅ 6 demo users seeded correctly
+- ✅ Can query database from within cluster
+
+**Cilium Verification:** ✅
+- ✅ Cilium status shows OK (all components healthy)
+- ✅ All Cilium pods running (3 agents + operator)
+- ✅ Hubble enabled and operational
+- ✅ Basic connectivity working
+
+**Network Verification:** ✅
+- ✅ Pod-to-pod communication works
+- ✅ Service DNS resolution works (*.svc.cluster.local)
+- ✅ Localhost can access OpenBao UI (port 8200)
+
+**Important Decisions/Changes:**
+- **Verification Approach:** Created automated script for repeatable verification
+- **Testing Strategy:** Tested both in-cluster and localhost connectivity
+- **Documentation:** Captured all test results for future reference
+
+**Files Created:**
+- scripts/helpers/verify-infrastructure.sh
+
+**Overall Status:**
+✅ **ALL INTEGRATION TESTS PASSED - INFRASTRUCTURE READY FOR APPLICATION DEPLOYMENT**
+
+---
+
 ## 🎯 Sub-Sprint 1 Success Criteria
 
 The infrastructure foundation is complete when:
@@ -2097,13 +2397,22 @@ After completing Sub-Sprint 1:
 
 ---
 
-**Document Version:** 1.1
+**Document Version:** 1.2
 **Last Updated:** 2025-12-29
-**Status:** ✅ Ready for Implementation
+**Status:** ✅ COMPLETED - All Phases Implemented Successfully
 **Prerequisite:** Master Sprint (docs/MASTER_SPRINT.md)
 **Next:** Sub-Sprint 2 - Backend Development
 
 **Changelog:**
+- v1.2 (2025-12-29):
+  - Added comprehensive execution logs for all phases (3, 4, 5, 7)
+  - Documented all issues faced and resolutions during implementation
+  - Captured SPIRE trust bundle best practices (k8sbundle ConfigMap, NOT insecure_bootstrap)
+  - Documented RBAC fixes for SPIRE server
+  - Added detailed verification results for all components
+  - Created infrastructure verification script
+  - **Status Updated:** Changed from "Ready for Implementation" to "COMPLETED"
+  - **Actual Execution Order:** Phase 1 → 2 → 6 → 3 → 4 → 5 → 7
 - v1.1 (2025-12-29):
   - Updated cluster name to `precinct-99` (Brooklyn Nine-Nine theme)
   - Added real bcrypt password hashes for demo users
