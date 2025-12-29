@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.api.v1 import health
 from app.core.spire import spire_client
+from app.core.vault import vault_client
 
 # Configure logging
 logging.basicConfig(
@@ -40,7 +41,14 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ SPIRE initialization failed: {e}")
         raise
 
-    # TODO: Initialize Vault client (Phase 3)
+    # Initialize Vault client
+    try:
+        await vault_client.connect()
+        logger.info("✅ Vault initialized")
+    except Exception as e:
+        logger.error(f"❌ Vault initialization failed: {e}")
+        raise
+
     # TODO: Initialize database pool (Phase 4)
     # TODO: Start credential rotation task (Phase 4)
 

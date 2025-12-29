@@ -5,6 +5,7 @@ Health check endpoints for Kubernetes liveness/readiness probes.
 from fastapi import APIRouter, status
 from pydantic import BaseModel
 from app.core.spire import spire_client
+from app.core.vault import vault_client
 
 router = APIRouter()
 
@@ -56,11 +57,14 @@ async def readiness_check():
     # Check SPIRE connection
     spire_status = "ready" if spire_client.is_connected() else "not_ready"
 
-    # TODO: Check Vault authentication (Phase 3)
+    # Check Vault authentication
+    vault_status = "ready" if vault_client.is_authenticated() else "not_ready"
+
     # TODO: Check database connection (Phase 4)
 
     return HealthResponse(
-        status="ready" if spire_status == "ready" else "not_ready",
+        status="ready" if (spire_status == "ready" and vault_status == "ready") else "not_ready",
         version=settings.APP_VERSION,
         spire=spire_status,
+        vault=vault_status,
     )
