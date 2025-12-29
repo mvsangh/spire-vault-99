@@ -1,0 +1,30 @@
+# Production dependencies for SPIRE-Vault-99 Backend
+# Python 3.11+
+
+# Web Framework
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+
+# Data Validation
+pydantic==2.10.0
+pydantic-settings==2.6.0
+
+# Database
+sqlalchemy==2.0.36
+asyncpg==0.30.0
+
+# Authentication & Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# HTTP Client (GitHub API)
+httpx==0.28.1
+
+# SPIRE Integration
+py-spiffe==0.6.0
+
+# Vault Integration
+hvac==2.3.0
+
+# Utilities
+python-multipart==0.0.18  # For form data

@@ -1,0 +1,80 @@
+"""
+Configuration module for SPIRE-Vault-99 Backend.
+Uses environment variables following 12-factor app principles.
+"""
+
+import os
+from typing import Optional
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    """Application settings loaded from environment variables."""
+
+    # Application
+    APP_NAME: str = "SPIRE-Vault-99 Backend"
+    APP_VERSION: str = "1.0.0"
+    DEBUG: bool = False
+
+    # Server
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
+
+    # CORS
+    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8000"]
+    CORS_CREDENTIALS: bool = True
+    CORS_METHODS: list[str] = ["*"]
+    CORS_HEADERS: list[str] = ["*"]
+
+    # SPIRE
+    SPIRE_SOCKET_PATH: str = "/run/spire/sockets/agent.sock"
+    SPIFFE_ID: Optional[str] = None  # Will be fetched from SPIRE
+
+    # Vault (OpenBao)
+    VAULT_ADDR: str = os.getenv(
+        "VAULT_ADDR",
+        "http://openbao.openbao.svc.cluster.local:8200"
+    )
+    VAULT_NAMESPACE: Optional[str] = None
+    VAULT_KV_PATH: str = "secret"  # KV v2 mount path
+    VAULT_DB_PATH: str = "database"  # Database secrets engine path
+    VAULT_DB_ROLE: str = "backend-role"  # Database role name
+
+    # PostgreSQL
+    DB_HOST: str = os.getenv(
+        "DB_HOST",
+        "postgresql.99-apps.svc.cluster.local"
+    )
+    DB_PORT: int = 5432
+    DB_NAME: str = "appdb"
+    # Dynamic credentials from Vault - no static username/password
+    DB_POOL_SIZE: int = 10
+    DB_POOL_MAX_OVERFLOW: int = 10
+    DB_POOL_TIMEOUT: int = 30
+    DB_CREDENTIAL_ROTATION_INTERVAL: int = 3000  # 50 minutes in seconds
+
+    # JWT Authentication
+    JWT_SECRET_KEY: str = os.getenv(
+        "JWT_SECRET_KEY",
+        "dev-secret-key-change-in-production"  # Change in production!
+    )
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+
+    # Password Hashing
+    BCRYPT_ROUNDS: int = 12
+
+    # GitHub API
+    GITHUB_API_URL: str = "https://api.github.com"
+
+    # Logging
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "json"  # "json" or "text"
+
+    class Config:
+        env_file = ".env"
+        case_sensitive = True
+
+
+# Global settings instance
+settings = Settings()
