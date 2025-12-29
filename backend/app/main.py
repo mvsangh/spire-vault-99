@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.api.v1 import health
+from app.core.spire import spire_client
 
 # Configure logging
 logging.basicConfig(
@@ -31,7 +32,14 @@ async def lifespan(app: FastAPI):
     logger.info(f"Vault address: {settings.VAULT_ADDR}")
     logger.info(f"Database host: {settings.DB_HOST}")
 
-    # TODO: Initialize SPIRE client (Phase 2)
+    # Initialize SPIRE client
+    try:
+        await spire_client.connect()
+        logger.info(f"✅ SPIRE initialized - ID: {spire_client.get_spiffe_id()}")
+    except Exception as e:
+        logger.error(f"❌ SPIRE initialization failed: {e}")
+        raise
+
     # TODO: Initialize Vault client (Phase 3)
     # TODO: Initialize database pool (Phase 4)
     # TODO: Start credential rotation task (Phase 4)
@@ -40,6 +48,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Shutting down application...")
+    await spire_client.close()
     # TODO: Close database pool (Phase 4)
     # TODO: Revoke Vault lease (Phase 4)
     logger.info("Shutdown complete")
