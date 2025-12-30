@@ -15,13 +15,13 @@
 | **Phase 2:** SPIRE Integration | ✅ COMPLETE | 2025-12-29 | 2025-12-29 | ~25 min | 1 (expected) |
 | **Phase 3:** Vault Integration | ✅ COMPLETE | 2025-12-29 | 2025-12-29 | ~30 min | 1 (expected) |
 | **Phase 4:** Database Management | ✅ COMPLETE | 2025-12-29 | 2025-12-29 | ~35 min | 1 (expected) |
-| **Phase 5:** User Authentication | ⏳ PENDING | - | - | - | - |
+| **Phase 5:** User Authentication | ✅ COMPLETE | 2025-12-29 | 2025-12-29 | ~25 min | 1 (expected) |
 | **Phase 6:** GitHub Integration | ⏳ PENDING | - | - | - | - |
 | **Phase 7:** API Endpoints | ⏳ PENDING | - | - | - | - |
 | **Phase 8:** K8s Deployment | ⏳ PENDING | - | - | - | - |
 | **Phase 9:** Integration Testing | ⏳ PENDING | - | - | - | - |
 
-**Overall Completion:** 44% (4 of 9 phases)
+**Overall Completion:** 56% (5 of 9 phases)
 
 ---
 
@@ -877,12 +877,158 @@ $ python3 -m py_compile app/core/database.py app/models/models.py app/models/sch
 
 ---
 
-## ⏳ Phase 5: User Authentication System
+## ✅ Phase 5: User Authentication System
 
 **Reference:** [sprint-2-backend.md - Phase 5](sprint-2-backend.md#-phase-5-user-authentication-system)
-**Status:** ⏳ PENDING
+**Date:** 2025-12-29
+**Status:** ✅ COMPLETED (Testing Deferred)
+**Duration:** ~25 minutes
+**Implemented By:** Claude Code
 
-[To be filled during implementation]
+### 📝 Summary
+
+Successfully implemented JWT-based user authentication system with bcrypt password hashing. Created authentication utilities, middleware for JWT validation, and three API endpoints: register, login, and protected "me" route. All files syntactically correct. **Testing deferred to Phase 8** when cluster is deployed.
+
+### ✅ Tasks Completed
+
+| Task | Status | Notes |
+|------|--------|-------|
+| 5.1: Authentication Utility Module | ✅ | app/core/auth.py with bcrypt + JWT |
+| 5.2: Authentication Middleware | ✅ | app/middleware/auth.py with JWT validation |
+| 5.3: User Registration Endpoint | ✅ | POST /api/v1/auth/register |
+| 5.4: User Login Endpoint | ✅ | POST /api/v1/auth/login |
+| 5.5: Protected Route Example | ✅ | GET /api/v1/auth/me |
+| 5.6: Add Auth Router to Main App | ✅ | Integrated in main.py |
+| 5.7: Test Authentication Flow | ⏳ DEFERRED | Cluster not running - will test in Phase 8 |
+
+### 📁 Files Created/Modified
+
+**New Files:**
+- `backend/app/core/auth.py` - Auth utilities (3.2 KB)
+- `backend/app/middleware/auth.py` - JWT middleware (2.1 KB)
+- `backend/app/api/v1/auth.py` - Auth endpoints (5.4 KB)
+
+**Modified Files:**
+- `backend/app/main.py` - Added auth router
+
+### 🔧 Technical Implementation
+
+**Authentication Utilities (auth.py):**
+- ✅ Password hashing: `hash_password()` using bcrypt (cost factor 12)
+- ✅ Password verification: `verify_password()` with exception handling
+- ✅ JWT token creation: `create_access_token()` with HS256 algorithm
+- ✅ JWT token decoding: `decode_access_token()` with validation
+- ✅ Token expiration: 1 hour (3600 seconds)
+- ✅ Token payload: `{user_id, username, exp, iat}`
+
+**Authentication Middleware (middleware/auth.py):**
+- ✅ CurrentUser class: holds user_id and username
+- ✅ HTTPBearer security scheme for Authorization header
+- ✅ `get_current_user()` dependency:
+  - Extracts Bearer token from Authorization header
+  - Validates token with decode_access_token()
+  - Extracts user_id and username from payload
+  - Returns CurrentUser instance
+  - Raises 401 if token invalid/expired/missing
+
+**Auth Router (api/v1/auth.py):**
+
+**POST /api/v1/auth/register:**
+- ✅ Input validation: UserCreate schema (username, email, password)
+- ✅ Check username uniqueness
+- ✅ Check email uniqueness
+- ✅ Hash password with bcrypt
+- ✅ Create User in database
+- ✅ Return MessageResponse (user must login to get token)
+- ✅ 201 Created status code
+
+**POST /api/v1/auth/login:**
+- ✅ Input validation: UserLogin schema (username, password)
+- ✅ Fetch user by username from database
+- ✅ Verify password with bcrypt
+- ✅ Generate JWT token with user_id and username
+- ✅ Return TokenResponse with access_token, token_type, expires_in
+- ✅ 401 Unauthorized for invalid credentials
+- ✅ Logging for login attempts
+
+**GET /api/v1/auth/me:**
+- ✅ Protected route (requires JWT token via get_current_user dependency)
+- ✅ Fetch user from database by user_id from token
+- ✅ Return UserResponse with user data
+- ✅ 404 Not Found if user doesn't exist
+
+**Main App Integration (main.py):**
+- ✅ Import: `from app.api.v1 import auth`
+- ✅ Router: `app.include_router(auth.router, prefix="/api/v1/auth", tags=["authentication"])`
+- ✅ Endpoints available:
+  - POST /api/v1/auth/register
+  - POST /api/v1/auth/login
+  - GET /api/v1/auth/me
+
+### 🧪 Verification
+
+**Python Syntax:**
+```bash
+$ python3 -m py_compile app/core/auth.py app/middleware/auth.py app/api/v1/auth.py
+✅ All files syntactically correct
+```
+
+**Files Created:** 3 new files (~270 lines)
+**Files Modified:** 1 file (main.py)
+
+**Testing Deferred to Phase 8:**
+- ⏳ User registration (POST /api/v1/auth/register)
+- ⏳ User login with correct password
+- ⏳ User login with wrong password (should fail with 401)
+- ⏳ Access protected route with valid token
+- ⏳ Access protected route without token (should fail with 401)
+- ⏳ Access protected route with expired token (should fail with 401)
+
+### ✅ Important Decisions
+
+1. **Bcrypt Cost Factor:**
+   - Decision: Use cost factor 12 for password hashing
+   - Rationale: Balance security and performance (per OWASP guidelines)
+   - Impact: ~250ms hashing time, strong protection against brute force
+
+2. **JWT Token Expiration:**
+   - Decision: 1-hour expiration (3600 seconds)
+   - Rationale: Balance security and user experience
+   - Impact: Users need to re-login after 1 hour
+
+3. **No Refresh Tokens:**
+   - Decision: Only access tokens (no refresh tokens)
+   - Rationale: Simplified demo implementation
+   - Impact: Users must login again after token expires
+   - Production: Should implement refresh token mechanism
+
+4. **Username as Primary Login:**
+   - Decision: Login by username (not email)
+   - Rationale: Brooklyn Nine-Nine theme uses usernames
+   - Impact: Consistent with demo data (jake, amy, rosa, etc.)
+
+5. **Password in Token Payload:**
+   - Decision: Only include user_id and username (NOT password)
+   - Rationale: Security best practice - never put sensitive data in JWT
+   - Impact: Secure token payload
+
+6. **Separate Registration and Login:**
+   - Decision: Registration returns message, login returns token
+   - Rationale: Standard REST pattern - registration doesn't auto-login
+   - Impact: User must explicitly login after registration
+
+### 📊 Metrics
+
+- **Lines of Code:** ~270 lines
+- **Files Created:** 3 files
+- **Files Modified:** 1 file
+- **Time Spent:** ~25 minutes
+- **Endpoints:** 3 (/register, /login, /me)
+- **Security:** bcrypt + JWT (HS256)
+- **Errors:** 0
+- **Testing:** Syntax only (integration deferred to Phase 8)
+
+**Result:** ✅ **6 of 7 SUCCESS CRITERIA MET** (1 deferred to Phase 8)
 
 ---
 
@@ -924,29 +1070,30 @@ $ python3 -m py_compile app/core/database.py app/models/models.py app/models/sch
 
 ## 📊 Overall Statistics
 
-**Current Status:** Phase 1-4 Complete, Phase 5-9 Pending
+**Current Status:** Phase 1-5 Complete, Phase 6-9 Pending
 
 ### Time Tracking
-- **Total Time Spent:** ~120 minutes (~2 hours)
-- **Average Time per Phase:** ~30 minutes (Phases 1-4)
-- **Estimated Remaining:** ~2.5-3.5 hours (Phases 5-9)
+- **Total Time Spent:** ~145 minutes (~2.4 hours)
+- **Average Time per Phase:** ~29 minutes (Phases 1-5)
+- **Estimated Remaining:** ~2-3 hours (Phases 6-9)
 
 ### Code Metrics
-- **Total Lines of Code:** ~1100 lines
-- **Total Files:** 21 files (13 P1 + 3 P2 + 2 P3 + 3 P4)
+- **Total Lines of Code:** ~1370 lines
+- **Total Files:** 24 files (13 P1 + 3 P2 + 2 P3 + 3 P4 + 3 P5)
 - **Total Modified Files:** 3 files (config.py, main.py, health.py)
 - **Total Scripts:** 3 scripts (2 helper scripts, 1 test script)
 - **Total Directories:** 12 directories
 - **Dependencies:** 19 packages (13 prod + 6 dev)
 - **Database Models:** 3 (User, GitHubIntegration, AuditLog)
 - **Pydantic Schemas:** 10 schemas
+- **API Endpoints:** 6 (health, health/ready, auth/register, auth/login, auth/me, root)
 
 ### Issues Summary
-- **Total Issues:** 3 (all expected - cluster not running)
+- **Total Issues:** 4 (all expected - cluster not running)
 - **Blocking Issues:** 0
-- **Resolved Issues:** 3
+- **Resolved Issues:** 4
 - **Open Issues:** 0
-- **Testing Deferred:** 2 (Phase 3 & 4 integration testing → Phase 8)
+- **Testing Deferred:** 3 (Phase 3, 4, & 5 integration testing → Phase 8)
 
 ---
 
