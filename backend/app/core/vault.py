@@ -31,37 +31,60 @@ class VaultClient:
 
     async def connect(self) -> None:
         """
-        Connect to Vault and authenticate using SPIRE certificate.
+        Connect to Vault and authenticate using SPIRE certificate (HTTPS) or token (HTTP dev mode).
         """
         try:
-            logger.info("Connecting to Vault with SPIRE certificate...")
+            # Check if we're using HTTPS (production) or HTTP (dev mode)
+            is_https = self.vault_addr.startswith('https://')
 
-            # Get SPIRE certificate and key
-            cert_pem = spire_client.get_certificate_pem()
-            key_pem = spire_client.get_private_key_pem()
+            if is_https:
+                # Production mode: Use cert authentication with SPIRE certificate
+                logger.info("Connecting to Vault with SPIRE certificate (HTTPS)...")
 
-            # Write cert and key to temporary files (required by hvac)
-            with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.pem') as cert_file:
-                cert_file.write(cert_pem)
-                cert_path = cert_file.name
+                # Get SPIRE certificate and key
+                cert_pem = spire_client.get_certificate_pem()
+                key_pem = spire_client.get_private_key_pem()
 
-            with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.pem') as key_file:
-                key_file.write(key_pem)
-                key_path = key_file.name
+                # Write cert and key to temporary files (required by hvac)
+                with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.pem') as cert_file:
+                    cert_file.write(cert_pem)
+                    cert_path = cert_file.name
 
-            # Create Vault client with mTLS
-            self._client = hvac.Client(
-                url=self.vault_addr,
-                cert=(cert_path, key_path),
-                verify=False  # Dev mode - in production, verify=True with CA bundle
-            )
+                with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.pem') as key_file:
+                    key_file.write(key_pem)
+                    key_path = key_file.name
 
-            # Authenticate using cert auth
-            auth_response = self._client.auth.cert.login()
+                # Create Vault client with mTLS
+                self._client = hvac.Client(
+                    url=self.vault_addr,
+                    cert=(cert_path, key_path),
+                    verify=False  # Dev mode - use True with CA bundle in production
+                )
 
-            self._authenticated = True
-            logger.info(f"✅ Vault authenticated - Token TTL: {auth_response['auth']['lease_duration']}s")
-            logger.info(f"Vault policies: {auth_response['auth']['policies']}")
+                # Authenticate using cert auth
+                auth_response = self._client.auth.cert.login()
+
+                self._authenticated = True
+                logger.info(f"✅ Vault authenticated (cert) - Token TTL: {auth_response['auth']['lease_duration']}s")
+                logger.info(f"Vault policies: {auth_response['auth']['policies']}")
+
+            else:
+                # Dev mode (HTTP): Cert auth requires TLS, so use token auth instead
+                logger.info("Connecting to Vault with token (HTTP dev mode)...")
+
+                # Use root token for dev mode
+                self._client = hvac.Client(
+                    url=self.vault_addr,
+                    token='root'  # Dev mode only - never use root token in production
+                )
+
+                # Verify authentication
+                if self._client.is_authenticated():
+                    self._authenticated = True
+                    logger.info("✅ Vault authenticated (token) - Dev mode with root token")
+                    logger.warning("⚠️  Using root token - For development only!")
+                else:
+                    raise RuntimeError("Token authentication failed")
 
         except Exception as e:
             logger.error(f"❌ Failed to authenticate to Vault: {e}")

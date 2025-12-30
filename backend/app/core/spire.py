@@ -5,9 +5,8 @@ Fetches X.509-SVID from SPIRE agent via Workload API.
 
 import logging
 from typing import Optional
-from spiffe.workloadapi import WorkloadApiClient
-from spiffe.x509svid import X509Svid
-from spiffe.spiffe_id import SpiffeId
+from spiffe import WorkloadApiClient, X509Svid, SpiffeId
+from cryptography.hazmat.primitives import serialization
 
 from app.config import settings
 
@@ -41,14 +40,15 @@ class SPIREClient:
             logger.info("Connecting to SPIRE agent...")
 
             # Create Workload API client
-            self._client = WorkloadApiClient(self.socket_path)
+            # SPIFFE library requires unix:// scheme
+            socket_url = f"unix://{self.socket_path}"
+            self._client = WorkloadApiClient(socket_url)
 
             # Fetch X.509-SVID
             self._svid = self._client.fetch_x509_svid()
             self._spiffe_id = self._svid.spiffe_id
 
             logger.info(f"✅ SPIRE connected - SPIFFE ID: {self._spiffe_id}")
-            logger.info(f"SVID expires at: {self._svid.not_after}")
 
         except Exception as e:
             logger.error(f"❌ Failed to connect to SPIRE: {e}")
@@ -93,7 +93,9 @@ class SPIREClient:
             Certificate chain in PEM format
         """
         svid = self.get_svid()
-        return svid.cert_chain_pem
+        # The spiffe library uses cert_chain (list of cryptography Certificate objects)
+        # Convert to PEM bytes using cryptography API
+        return svid.cert_chain[0].public_bytes(encoding=serialization.Encoding.PEM)
 
     def get_private_key_pem(self) -> bytes:
         """
@@ -103,7 +105,13 @@ class SPIREClient:
             Private key in PEM format
         """
         svid = self.get_svid()
-        return svid.private_key_pem
+        # The spiffe library uses private_key (cryptography PrivateKey object)
+        # Convert to PEM bytes using cryptography API
+        return svid.private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption()
+        )
 
     def is_connected(self) -> bool:
         """Check if connected to SPIRE and SVID is available."""

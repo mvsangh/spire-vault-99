@@ -20,11 +20,11 @@ NC='\033[0m' # No Color
 #
 echo ""
 echo "📋 Step 1: Enable Cert Auth Method"
-if kubectl exec -n openbao deploy/openbao -- bao auth list | grep -q "cert/"; then
+if kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao auth list | grep -q "cert/"; then
     echo -e "${YELLOW}✓ Cert auth already enabled${NC}"
 else
     echo "Enabling cert auth..."
-    kubectl exec -n openbao deploy/openbao -- bao auth enable cert
+    kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao auth enable cert
     echo -e "${GREEN}✅ Cert auth enabled${NC}"
 fi
 
@@ -47,11 +47,11 @@ $(cat /tmp/spire-bundle.crt)
 EOF"
 
 # Check if backend-role exists
-if kubectl exec -n openbao deploy/openbao -- bao list auth/cert/certs 2>/dev/null | grep -q "backend-role"; then
+if kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao list auth/cert/certs 2>/dev/null | grep -q "backend-role"; then
     echo -e "${YELLOW}✓ backend-role already exists${NC}"
 else
     echo "Creating backend-role for cert auth..."
-    kubectl exec -n openbao deploy/openbao -- bao write auth/cert/certs/backend-role \
+    kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao write auth/cert/certs/backend-role \
         certificate=@/tmp/bundle.crt \
         allowed_common_names="spiffe://demo.local/ns/99-apps/sa/backend" \
         token_policies="backend-policy" \
@@ -65,11 +65,11 @@ fi
 #
 echo ""
 echo "📋 Step 4: Enable KV v2 Secrets Engine"
-if kubectl exec -n openbao deploy/openbao -- bao secrets list | grep -q "secret/"; then
+if kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao secrets list | grep -q "secret/"; then
     echo -e "${YELLOW}✓ KV v2 already enabled at secret/${NC}"
 else
     echo "Enabling KV v2 at secret/..."
-    kubectl exec -n openbao deploy/openbao -- bao secrets enable -version=2 -path=secret kv
+    kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao secrets enable -version=2 -path=secret kv
     echo -e "${GREEN}✅ KV v2 enabled${NC}"
 fi
 
@@ -78,11 +78,11 @@ fi
 #
 echo ""
 echo "📋 Step 5: Enable Database Secrets Engine"
-if kubectl exec -n openbao deploy/openbao -- bao secrets list | grep -q "database/"; then
+if kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao secrets list | grep -q "database/"; then
     echo -e "${YELLOW}✓ Database secrets engine already enabled${NC}"
 else
     echo "Enabling database secrets engine..."
-    kubectl exec -n openbao deploy/openbao -- bao secrets enable database
+    kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao secrets enable database
     echo -e "${GREEN}✅ Database secrets engine enabled${NC}"
 fi
 
@@ -91,7 +91,7 @@ fi
 #
 echo ""
 echo "📋 Step 6: Configure PostgreSQL Connection"
-kubectl exec -n openbao deploy/openbao -- bao write database/config/postgresql \
+kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao write database/config/postgresql \
     plugin_name=postgresql-database-plugin \
     allowed_roles="backend-role" \
     connection_url="postgresql://{{username}}:{{password}}@postgresql.99-apps.svc.cluster.local:5432/appdb?sslmode=disable" \
@@ -104,7 +104,7 @@ echo -e "${GREEN}✅ PostgreSQL connection configured${NC}"
 #
 echo ""
 echo "📋 Step 7: Create Database Role for Backend"
-kubectl exec -n openbao deploy/openbao -- bao write database/roles/backend-role \
+kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao write database/roles/backend-role \
     db_name=postgresql \
     creation_statements="CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}' INHERIT; \
         GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO \"{{name}}\"; \
@@ -142,7 +142,7 @@ path "auth/token/renew-self" {
 }
 EOF'
 
-kubectl exec -n openbao deploy/openbao -- bao policy write backend-policy /tmp/backend-policy.hcl
+kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao policy write backend-policy /tmp/backend-policy.hcl
 echo -e "${GREEN}✅ Backend policy created${NC}"
 
 #
@@ -151,7 +151,7 @@ echo -e "${GREEN}✅ Backend policy created${NC}"
 echo ""
 echo "📋 Step 9: Test Configuration"
 echo "Testing database credential generation..."
-if kubectl exec -n openbao deploy/openbao -- bao read database/creds/backend-role; then
+if kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao read database/creds/backend-role; then
     echo -e "${GREEN}✅ Database credential generation works!${NC}"
 else
     echo -e "${YELLOW}⚠️  Database credential test failed - will retry in Phase 4${NC}"

@@ -52,21 +52,21 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
 
 -- Insert demo users (Brooklyn Nine-Nine theme)
 -- Passwords are bcrypt hashed with cost factor 12
--- Password format: <username>99 (e.g., jake99, amy99, etc.)
+-- Password format: <username>-precinct99 (meets 8-char minimum)
 
 INSERT INTO users (username, email, password_hash) VALUES
-    -- jake / jake99
-    ('jake', 'jake@precinct99.nypd', '$2b$12$JBxsZEgat.6wF8SJu6yWJewcSa/6X1rZK/vUxZ9jPtGNnC9dpqirO'),
-    -- amy / amy99
-    ('amy', 'amy@precinct99.nypd', '$2b$12$bzpBkJzWcl9LaUqTPPs/j.ACuPly9uOSv3hObDyePRSSKYq.PaZwK'),
-    -- rosa / rosa99
-    ('rosa', 'rosa@precinct99.nypd', '$2b$12$HPF1oodM8XFeJGeu2cgUc.0mG/U92ajcYsxhxtrZJFZOsN3vfHBLm'),
-    -- terry / terry99
-    ('terry', 'terry@precinct99.nypd', '$2b$12$tgtXWVFKeVDTLqiblt7RO.Trf/ihTDRts1hQJTAjlCE27BrgugK4O'),
-    -- charles / charles99
-    ('charles', 'charles@precinct99.nypd', '$2b$12$mhwrkOV7bFyBKm7rOGIPnOVZUYRkUNqtcFDLMuQjs.8MTCiTYkBKC'),
-    -- gina / gina99
-    ('gina', 'gina@precinct99.nypd', '$2b$12$Ww3yDtL0ia7o7nGyvQPNhu.nx.oGmdjrKcpjTMfJ.htHgyR6c/Mx.')
+    -- jake / jake-precinct99
+    ('jake', 'jake@precinct99.nypd', '$2b$12$uO/Sp3QUtaVFVesLIAOZl.73ai57cFhnkIbgk3XrxhxA9FTBfzDrm'),
+    -- amy / amy-precinct99
+    ('amy', 'amy@precinct99.nypd', '$2b$12$nMKpzWG.NgfdGENfkFhHB./KPXFfaGisMLfwI3GrUkyNiDsTkTkYy'),
+    -- rosa / rosa-precinct99
+    ('rosa', 'rosa@precinct99.nypd', '$2b$12$ChuJ8n0juCvJKPqK2Xt9De4rI9BPq86vSZbYGuzltG5jNgQiz9xAy'),
+    -- terry / terry-precinct99
+    ('terry', 'terry@precinct99.nypd', '$2b$12$9DIz8MbpBvpQfhLxGCxgc.ctKLcmn7sMrDVebIpgRN3XF533YtCLW'),
+    -- charles / charles-precinct99
+    ('charles', 'charles@precinct99.nypd', '$2b$12$nabwgPQuazJ0bI/THnSqoeuGFYHdEjBsUgQGnmu58ovXw5o2NSb8y'),
+    -- gina / gina-precinct99
+    ('gina', 'gina@precinct99.nypd', '$2b$12$vPdq1UmzQJJQIEZzCnWoQ.3kVErWJF8QnAYlZTt5iulv1DRntf9fW')
 ON CONFLICT (username) DO NOTHING;
 
 -- Create updated_at trigger function

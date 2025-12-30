@@ -5,6 +5,7 @@ Database connection manager with Vault dynamic credentials and automatic rotatio
 import logging
 import asyncio
 from typing import Optional
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.pool import NullPool
@@ -74,7 +75,7 @@ class DatabaseManager:
 
             # Test connection
             async with self._engine.begin() as conn:
-                await conn.execute("SELECT 1")
+                await conn.execute(text("SELECT 1"))
 
             logger.info(f"✅ Database connected - Pool size: {settings.DB_POOL_SIZE}, Max overflow: {settings.DB_MAX_OVERFLOW}")
 
@@ -184,7 +185,7 @@ class DatabaseManager:
 
             # Step 3: Test new connection
             async with new_engine.begin() as conn:
-                await conn.execute("SELECT 1")
+                await conn.execute(text("SELECT 1"))
 
             logger.info("✅ New database connection tested successfully")
 
@@ -254,7 +255,7 @@ class DatabaseManager:
 
         try:
             async with self._engine.begin() as conn:
-                await conn.execute("SELECT 1")
+                await conn.execute(text("SELECT 1"))
             return True
         except Exception as e:
             logger.error(f"Database health check failed: {e}")

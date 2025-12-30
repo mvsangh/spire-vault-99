@@ -7,13 +7,14 @@ Run this script to get the actual hashes to use in init-db.sql
 import bcrypt
 
 # Demo users (Brooklyn Nine-Nine theme)
+# Password format: <username>-precinct99 (meets 8-char minimum)
 users = [
-    ("jake", "jake99"),
-    ("amy", "amy99"),
-    ("rosa", "rosa99"),
-    ("terry", "terry99"),
-    ("charles", "charles99"),
-    ("gina", "gina99"),
+    ("jake", "jake-precinct99"),
+    ("amy", "amy-precinct99"),
+    ("rosa", "rosa-precinct99"),
+    ("terry", "terry-precinct99"),
+    ("charles", "charles-precinct99"),
+    ("gina", "gina-precinct99"),
 ]
 
 print("-- Demo User Password Hashes (bcrypt, cost factor 12)")
