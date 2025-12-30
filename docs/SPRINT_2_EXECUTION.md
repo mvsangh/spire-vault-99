@@ -18,10 +18,10 @@
 | **Phase 5:** User Authentication | ✅ COMPLETE | 2025-12-29 | 2025-12-29 | ~25 min | 1 (expected) |
 | **Phase 6:** GitHub Integration | ✅ COMPLETE | 2025-12-29 | 2025-12-29 | ~20 min | 1 (expected) |
 | **Phase 7:** API Endpoints | ✅ COMPLETE | 2025-12-29 | 2025-12-29 | ~10 min | None |
-| **Phase 8:** K8s Deployment | ⏳ PENDING | - | - | - | - |
+| **Phase 8:** K8s Deployment | ✅ COMPLETE | 2025-12-30 | 2025-12-30 | ~20 min | None |
 | **Phase 9:** Integration Testing | ⏳ PENDING | - | - | - | - |
 
-**Overall Completion:** 78% (7 of 9 phases)
+**Overall Completion:** 89% (8 of 9 phases)
 
 ---
 
@@ -1364,12 +1364,137 @@ GET /                        ✅
 
 ---
 
-## ⏳ Phase 8: Containerization & Kubernetes Deployment
+## ✅ Phase 8: Containerization & Kubernetes Deployment
 
 **Reference:** [sprint-2-backend.md - Phase 8](sprint-2-backend.md#-phase-8-containerization--kubernetes-deployment)
-**Status:** ⏳ PENDING
+**Date:** 2025-12-30
+**Status:** ✅ COMPLETED
+**Duration:** ~20 minutes
+**Implemented By:** Claude Code
 
-[To be filled during implementation]
+### 📝 Summary
+
+Successfully created all Kubernetes manifests for backend deployment and configured Tilt for hot-reload development workflow. All YAML files validated successfully. Deployment is ready for cluster deployment in Phase 9.
+
+### ✅ Tasks Completed
+
+| Task | Status | Notes |
+|------|--------|-------|
+| 8.1: Create ServiceAccount | ✅ | Simple ServiceAccount for backend pod |
+| 8.2: Create ConfigMap | ✅ | All environment variables configured |
+| 8.3: Create Deployment | ✅ | SPIRE socket mount, health probes, resource limits |
+| 8.4: Create Service | ✅ | NodePort 30001 for external access |
+| 8.5: Create DB Init Script | ✅ | Comprehensive schema with triggers, 6 demo users |
+| 8.6: Update Postgres ConfigMap | ✅ | Updated with improved init script |
+| 8.7: Update Tiltfile | ✅ | Configured for hot-reload with all K8s manifests |
+| 8.8: Validate Syntax | ✅ | All YAML and Python files validated |
+
+### 📁 Files Created
+
+**Backend Kubernetes Manifests:**
+```
+backend/k8s/serviceaccount.yaml    # Backend ServiceAccount
+backend/k8s/configmap.yaml         # Environment variables (2.0 KB)
+backend/k8s/deployment.yaml        # Backend deployment with SPIRE (2.2 KB)
+backend/k8s/service.yaml           # NodePort service on 30001
+```
+
+**Database Scripts:**
+```
+scripts/database/init-db.sql                  # PostgreSQL init script (3.5 KB)
+scripts/database/generate-demo-passwords.py   # Password hash generator
+```
+
+**Modified Files:**
+```
+Tiltfile                                # Updated for K8s deployment
+infrastructure/postgres/init-configmap.yaml  # Updated DB schema
+```
+
+### 🔧 Configuration Details
+
+**Kubernetes Deployment Features:**
+- **ServiceAccount:** `backend` in `99-apps` namespace
+- **Image:** `backend:dev` (Tilt builds from Dockerfile.dev)
+- **Environment:** All variables loaded from ConfigMap
+- **SPIRE Socket:** Mounted from hostPath at `/run/spire/sockets`
+- **Health Probes:**
+  - Liveness: `/api/v1/health` (30s initial delay, 10s interval)
+  - Readiness: `/api/v1/health/ready` (10s initial delay, 5s interval)
+- **Resource Limits:**
+  - Requests: 256Mi RAM, 100m CPU
+  - Limits: 512Mi RAM, 500m CPU
+- **Service:** NodePort 30001 → Pod 8000
+
+**Tilt Hot-Reload Configuration:**
+- **Build:** `backend:dev` from `backend/Dockerfile.dev`
+- **Live Update:** Syncs `backend/app/` to `/app/app/` in container
+- **Auto-Restart:** On requirements.txt changes
+- **Port Forward:** `8000:8000` for local access
+- **Manifests:** ServiceAccount, ConfigMap, Deployment, Service
+
+**Database Initialization:**
+- **Schema:** Users, GitHub Integrations, Audit Log
+- **Indexes:** Username, email, user_id, action, created_at
+- **Triggers:** Auto-update `updated_at` on record changes
+- **Demo Users:** 6 Brooklyn Nine-Nine characters
+  - jake / jake99
+  - amy / amy99
+  - rosa / rosa99
+  - terry / terry99
+  - charles / charles99
+  - gina / gina99
+- **Password Hashing:** bcrypt with cost factor 12
+
+### 🧪 Validation Results
+
+**YAML Syntax Validation:**
+```
+✅ backend/k8s/serviceaccount.yaml: Valid YAML
+✅ backend/k8s/configmap.yaml: Valid YAML
+✅ backend/k8s/deployment.yaml: Valid YAML
+✅ backend/k8s/service.yaml: Valid YAML
+```
+
+**Python Syntax Validation:**
+```
+✅ scripts/database/generate-demo-passwords.py: Valid Python syntax
+✅ Tiltfile: Valid Starlark/Python syntax
+```
+
+### 📊 Phase 8 Statistics
+
+- **Files Created:** 6 (4 K8s manifests, 2 scripts)
+- **Files Modified:** 2 (Tiltfile, postgres ConfigMap)
+- **Lines of Code:** ~300 lines (YAML + SQL + Python)
+- **Demo Users:** 6 (with bcrypt hashes generated)
+- **K8s Resources:** 4 (ServiceAccount, ConfigMap, Deployment, Service)
+
+### 🎯 Success Criteria
+
+- ✅ All Kubernetes manifests created
+- ✅ Tiltfile configured for hot-reload
+- ✅ Database initialization script ready
+- ✅ All syntax validated successfully
+- ✅ Ready for cluster deployment (Phase 9)
+
+### 📝 Decisions Made
+
+1. **SPIRE Socket Mount:** Using `hostPath` to access agent socket at `/run/spire/sockets`
+2. **Resource Limits:** Conservative limits (256Mi/512Mi RAM) for development
+3. **NodePort Service:** Port 30001 for easy external access during development
+4. **Database Schema:** Matches SQLAlchemy models exactly with triggers for `updated_at`
+5. **Demo Passwords:** Real bcrypt hashes generated for 6 users
+6. **Tilt Configuration:** Live update syncs Python files for ~2 second reload
+
+### ⏭️ Next Steps
+
+Phase 9 will:
+1. Deploy backend to cluster with `tilt up`
+2. Run Vault configuration script
+3. Create SPIRE registration entry
+4. Test all integrations end-to-end
+5. Verify hot-reload functionality
 
 ---
 
@@ -1384,30 +1509,40 @@ GET /                        ✅
 
 ## 📊 Overall Statistics
 
-**Current Status:** Phase 1-7 Complete, Phase 8-9 Pending
+**Current Status:** Phase 1-8 Complete, Phase 9 Pending
 
 ### Time Tracking
-- **Total Time Spent:** ~175 minutes (~2.9 hours)
-- **Average Time per Phase:** ~25 minutes (Phases 1-7)
-- **Estimated Remaining:** ~1-1.5 hours (Phases 8-9)
+- **Total Time Spent:** ~195 minutes (~3.25 hours)
+- **Average Time per Phase:** ~24 minutes (Phases 1-8)
+- **Estimated Remaining:** ~30-60 minutes (Phase 9 testing)
 
 ### Code Metrics
-- **Total Lines of Code:** ~1660 lines
-- **Total Files:** 26 files (13 P1 + 3 P2 + 2 P3 + 3 P4 + 3 P5 + 2 P6)
-- **Total Modified Files:** 3 files (config.py, main.py, health.py)
-- **Total Scripts:** 3 scripts (2 helper scripts, 1 test script)
+- **Total Lines of Code:** ~1960 lines
+- **Total Files:** 32 files
+  - Phase 1: 13 files
+  - Phase 2: 3 files
+  - Phase 3: 2 files
+  - Phase 4: 3 files
+  - Phase 5: 3 files
+  - Phase 6: 2 files
+  - Phase 7: 0 files (documentation only)
+  - Phase 8: 6 files
+- **Total Modified Files:** 5 files (config.py, main.py, health.py, Tiltfile, postgres ConfigMap)
+- **Total Scripts:** 4 scripts (3 helper scripts, 1 password generator)
 - **Total Directories:** 12 directories
 - **Dependencies:** 19 packages (13 prod + 6 dev)
 - **Database Models:** 3 (User, GitHubIntegration, AuditLog)
 - **Pydantic Schemas:** 10 schemas
 - **API Endpoints:** 9 (health x2, auth x3, github x3, root)
+- **Kubernetes Resources:** 4 (ServiceAccount, ConfigMap, Deployment, Service)
+- **Demo Users:** 6 (Brooklyn Nine-Nine characters)
 
 ### Issues Summary
 - **Total Issues:** 5 (all expected - cluster not running)
 - **Blocking Issues:** 0
 - **Resolved Issues:** 5
 - **Open Issues:** 0
-- **Testing Deferred:** 4 (Phase 3, 4, 5, & 6 integration testing → Phase 8)
+- **Testing Deferred:** 5 (Phase 3, 4, 5, 6, 8 integration testing → Phase 9)
 
 ---
 
@@ -1420,7 +1555,7 @@ GET /                        ✅
 ---
 
 **Document Version:** 1.0
-**Last Updated:** 2025-12-29
+**Last Updated:** 2025-12-30
 **Maintained By:** Claude Code
 
 ---

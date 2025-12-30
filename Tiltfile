@@ -1,12 +1,9 @@
 # Tiltfile for SPIRE-Vault-99 Backend Development
 # Enables hot-reload development with real SPIRE, Vault, and PostgreSQL
 
-# Note: K8s manifests will be added in Phase 8
-# For now, this Tiltfile is prepared but won't be used until deployment
-
 # Build Docker image with live update
 docker_build(
-    'backend',
+    'backend:dev',
     context='./backend',
     dockerfile='./backend/Dockerfile.dev',
     live_update=[
@@ -21,36 +18,44 @@ docker_build(
     ]
 )
 
-# Kubernetes manifests will be loaded in Phase 8:
-# k8s_yaml('backend/k8s/serviceaccount.yaml')
-# k8s_yaml('backend/k8s/deployment.yaml')
-# k8s_yaml('backend/k8s/service.yaml')
+# Load Kubernetes manifests
+k8s_yaml('backend/k8s/serviceaccount.yaml')
+k8s_yaml('backend/k8s/configmap.yaml')
+k8s_yaml('backend/k8s/deployment.yaml')
+k8s_yaml('backend/k8s/service.yaml')
 
-# Configure backend resource (will be uncommented in Phase 8)
-# k8s_resource(
-#     'backend',
-#     port_forwards=[
-#         '8000:8000',  # API
-#     ],
-#     labels=['app'],
-# )
+# Configure backend resource
+k8s_resource(
+    'backend',
+    port_forwards=[
+        '8000:8000',  # API
+    ],
+    labels=['app'],
+)
 
 # Display startup message
 print("""
 🚀 SPIRE-Vault-99 Backend Development
 
-Tiltfile configured!
+Tiltfile ready for hot-reload development!
 
-Note: This Tiltfile is ready but cannot be used until Phase 8
-when Kubernetes manifests are created.
+Usage:
+  tilt up              # Start development environment
+  tilt down            # Stop and clean up
 
-For now, test locally:
-  cd backend
-  pip install -r requirements-dev.txt
-  uvicorn app.main:app --reload
+The backend will be available at:
+  http://localhost:8000           # API root
+  http://localhost:8000/docs      # Swagger UI
+  http://localhost:8000/redoc     # ReDoc
 
-Then test:
+Test endpoints:
   curl http://localhost:8000/api/v1/health
+  curl http://localhost:8000/api/v1/health/ready
 
-You'll be able to use 'tilt up' starting in Phase 8!
+Hot-reload enabled:
+  - Edit Python files in backend/app/
+  - Changes sync automatically (~2 seconds)
+  - uvicorn restarts automatically
+
+Note: Ensure cluster is running with SPIRE, Vault, and PostgreSQL deployed!
 """)
