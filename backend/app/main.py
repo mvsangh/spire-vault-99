@@ -71,8 +71,54 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="Zero-trust demo platform with SPIRE/SPIFFE + OpenBao + Cilium",
+    description="""
+    # SPIRE-Vault-99 Backend API
+
+    Zero-trust security demo platform showcasing production-grade workload identity,
+    secrets management, and service mesh integration.
+
+    ## Features
+
+    - **Workload Identity**: SPIRE/SPIFFE X.509-SVID with 1-hour TTL
+    - **Secrets Management**: OpenBao with dynamic database credentials
+    - **Authentication**: JWT-based user authentication with bcrypt
+    - **GitHub Integration**: Secure token storage in Vault
+    - **Service Mesh**: Cilium with SPIFFE-based network policies (planned)
+
+    ## Security
+
+    - mTLS authentication to Vault using SPIRE certificates
+    - Database credentials rotated every 50 minutes
+    - GitHub tokens stored in Vault KV v2 (never in database)
+    - JWT tokens with 1-hour expiration
+    - Protected routes with dependency injection
+
+    ## Authentication
+
+    Most endpoints require JWT authentication. Include the token in the Authorization header:
+    ```
+    Authorization: Bearer <your_jwt_token>
+    ```
+
+    Obtain a token by registering and logging in via `/api/v1/auth/register` and `/api/v1/auth/login`.
+    """,
     lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_tags=[
+        {
+            "name": "health",
+            "description": "Health check endpoints for Kubernetes liveness and readiness probes"
+        },
+        {
+            "name": "authentication",
+            "description": "User registration, login, and profile management"
+        },
+        {
+            "name": "github",
+            "description": "GitHub integration with secure token storage in Vault"
+        },
+    ],
 )
 
 # Configure CORS
