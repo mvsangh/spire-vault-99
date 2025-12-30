@@ -32,7 +32,7 @@ This demo platform consists of **2 applications** plus supporting infrastructure
 ### **Applications (2 Total)**
 
 #### **1. Frontend Application**
-- **Technology:** Next.js 14 (App Router) + TypeScript + Tailwind CSS
+- **Technology:** Next.js 16 (App Router) + TypeScript + Tailwind CSS
 - **Purpose:** User interface and interaction
 - **Port:** 3000 (exposed for browser access)
 - **Key Features:**
@@ -768,7 +768,7 @@ DEMO OBSERVATION POINTS:
 **Focus:** Next.js frontend with authentication UI and GitHub integration features
 
 **Key Deliverables:**
-- Next.js 14 application (App Router)
+- Next.js 16 application (App Router)
 - Authentication pages:
   - Login page
   - Registration page
@@ -866,7 +866,7 @@ DEMO OBSERVATION POINTS:
 - **GitHub Client:** httpx
 
 ### **Frontend**
-- **Framework:** Next.js 14 (App Router)
+- **Framework:** Next.js 16 (App Router)
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS
 - **HTTP Client:** Axios
