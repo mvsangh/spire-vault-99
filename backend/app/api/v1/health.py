@@ -31,13 +31,21 @@ async def health_check():
     """
     Health check endpoint.
     Returns 200 if the application is running.
+    Includes component status checks.
     """
     from app.config import settings
+
+    # Check component status
+    spire_status = "connected" if spire_client.is_connected() else "not_initialized"
+    vault_status = "authenticated" if vault_client.is_authenticated() else "not_initialized"
+    database_status = "connected" if await db_manager.is_healthy() else "not_initialized"
 
     return HealthResponse(
         status="healthy",
         version=settings.APP_VERSION,
-        # TODO: Add real status checks in later phases
+        spire=spire_status,
+        vault=vault_status,
+        database=database_status,
     )
 
 
