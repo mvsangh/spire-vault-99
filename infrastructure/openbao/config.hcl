@@ -16,7 +16,11 @@ listener "tcp" {
   tls_cert_file = "/vault/tls/server.crt"
   tls_key_file  = "/vault/tls/server.key"
 
-  # Client certificate authentication (optional, for mTLS)
+  # SPIFFE/SPIRE Integration Requirements
+  # For SPIFFE auth with x.509 certificates, client certs must be enabled
+  tls_disable_client_certs = false
+
+  # Optional: Require and verify client certificates at listener level
   # tls_require_and_verify_client_cert = false
   # tls_client_ca_file = "/vault/tls/ca.crt"
 }

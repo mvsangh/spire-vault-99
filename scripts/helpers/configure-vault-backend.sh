@@ -16,48 +16,51 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 #
-# 1. Enable Cert Auth Method
+# 1. Enable JWT Auth Method
 #
 echo ""
-echo "📋 Step 1: Enable Cert Auth Method"
-if kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao auth list | grep -q "cert/"; then
-    echo -e "${YELLOW}✓ Cert auth already enabled${NC}"
+echo "📋 Step 1: Enable JWT Auth Method"
+if kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao auth list | grep -q "jwt/"; then
+    echo -e "${YELLOW}✓ JWT auth already enabled${NC}"
 else
-    echo "Enabling cert auth..."
-    kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao auth enable cert
-    echo -e "${GREEN}✅ Cert auth enabled${NC}"
+    echo "Enabling JWT auth..."
+    kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao auth enable jwt
+    echo -e "${GREEN}✅ JWT auth enabled${NC}"
 fi
 
 #
-# 2. Get SPIRE Trust Bundle
+# 2. Configure JWT Auth with SPIRE OIDC Discovery
 #
 echo ""
-echo "📋 Step 2: Extract SPIRE Trust Bundle"
-kubectl get configmap -n spire-system spire-bundle -o jsonpath='{.data.bundle\.crt}' > /tmp/spire-bundle.crt
-echo -e "${GREEN}✅ Trust bundle extracted${NC}"
-cat /tmp/spire-bundle.crt
+echo "📋 Step 2: Configure JWT Auth with SPIRE OIDC Discovery"
+echo "Configuring JWT auth to use SPIRE server's OIDC discovery endpoint..."
+
+kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao write auth/jwt/config \
+    oidc_discovery_url="http://spire-server.spire-system.svc.cluster.local:8090" \
+    bound_issuer="http://spire-server.spire-system.svc.cluster.local:8090"
+
+echo -e "${GREEN}✅ JWT auth configured with SPIRE OIDC discovery${NC}"
 
 #
-# 3. Configure Cert Auth with SPIRE CA
+# 3. Create JWT Auth Role for Backend
 #
 echo ""
-echo "📋 Step 3: Configure Cert Auth with SPIRE CA"
-kubectl exec -n openbao deploy/openbao -- sh -c "cat > /tmp/bundle.crt <<'EOF'
-$(cat /tmp/spire-bundle.crt)
-EOF"
+echo "📋 Step 3: Create backend-role for JWT Auth"
 
 # Check if backend-role exists
-if kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao list auth/cert/certs 2>/dev/null | grep -q "backend-role"; then
+if kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao list auth/jwt/role 2>/dev/null | grep -q "backend-role"; then
     echo -e "${YELLOW}✓ backend-role already exists${NC}"
 else
-    echo "Creating backend-role for cert auth..."
-    kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao write auth/cert/certs/backend-role \
-        certificate=@/tmp/bundle.crt \
-        allowed_common_names="spiffe://demo.local/ns/99-apps/sa/backend" \
-        token_policies="backend-policy" \
-        token_ttl=3600 \
-        token_max_ttl=7200
-    echo -e "${GREEN}✅ backend-role created${NC}"
+    echo "Creating backend-role for JWT auth..."
+    kubectl exec -n openbao deploy/openbao -- env BAO_TOKEN=root bao write auth/jwt/role/backend-role \
+        role_type="jwt" \
+        bound_audiences="openbao,vault" \
+        bound_subject="spiffe://demo.local/ns/99-apps/sa/backend" \
+        user_claim="sub" \
+        policies="backend-policy" \
+        ttl="1h" \
+        max_ttl="2h"
+    echo -e "${GREEN}✅ backend-role created for JWT auth${NC}"
 fi
 
 #
@@ -161,13 +164,13 @@ echo ""
 echo -e "${GREEN}✅ OpenBao configuration complete!${NC}"
 echo ""
 echo "Summary:"
-echo "  - Cert auth: ✅ Enabled with SPIRE trust bundle"
+echo "  - JWT auth:  ✅ Enabled with SPIRE OIDC discovery"
 echo "  - KV v2:     ✅ Enabled at secret/"
 echo "  - Database:  ✅ Enabled with PostgreSQL connection"
 echo "  - Role:      ✅ backend-role created (1h TTL)"
 echo "  - Policy:    ✅ backend-policy created"
 echo ""
-echo "Next: Deploy backend to test mTLS authentication!"
-
-# Cleanup
-rm -f /tmp/spire-bundle.crt
+echo "📝 Note: Pivoted from cert auth to JWT-SVID due to OpenBao limitation"
+echo "   (cert auth requires CN field, SPIFFE uses URI SANs)"
+echo ""
+echo "Next: Deploy backend to test JWT-SVID authentication!"

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: oidc-discovery
+  namespace: spire-system
+  labels:
+    app: oidc-discovery-provider
+spec:
+  type: ClusterIP
+  ports:
+  - name: oidc-http
+    port: 80
+    targetPort: 8008
+    protocol: TCP
+  selector:
+    app: oidc-discovery-provider

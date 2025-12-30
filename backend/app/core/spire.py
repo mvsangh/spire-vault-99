@@ -87,15 +87,19 @@ class SPIREClient:
 
     def get_certificate_pem(self) -> bytes:
         """
-        Get certificate in PEM format for mTLS.
+        Get certificate chain in PEM format for mTLS.
+        Returns the FULL chain including leaf and intermediate certificates.
 
         Returns:
-            Certificate chain in PEM format
+            Full certificate chain in PEM format (concatenated)
         """
         svid = self.get_svid()
         # The spiffe library uses cert_chain (list of cryptography Certificate objects)
-        # Convert to PEM bytes using cryptography API
-        return svid.cert_chain[0].public_bytes(encoding=serialization.Encoding.PEM)
+        # Convert FULL chain to PEM bytes - Vault needs the complete chain for validation
+        cert_chain_pem = b''
+        for cert in svid.cert_chain:
+            cert_chain_pem += cert.public_bytes(encoding=serialization.Encoding.PEM)
+        return cert_chain_pem
 
     def get_private_key_pem(self) -> bytes:
         """
@@ -116,6 +120,49 @@ class SPIREClient:
     def is_connected(self) -> bool:
         """Check if connected to SPIRE and SVID is available."""
         return self._svid is not None
+
+    def fetch_jwt_svid(self, audiences: list[str]) -> str:
+        """
+        Fetch JWT-SVID from SPIRE agent for OpenBao authentication.
+
+        Args:
+            audiences: List of audience values for the JWT (e.g., ["openbao", "vault"])
+
+        Returns:
+            JWT token as string
+
+        Raises:
+            RuntimeError: If client not connected
+
+        Note:
+            This method fetches a fresh JWT-SVID on each call. For production use,
+            consider implementing token caching with automatic refresh before expiry.
+        """
+        if not self._client:
+            raise RuntimeError("SPIRE client not connected - call connect() first")
+
+        try:
+            logger.info(f"Fetching JWT-SVID with audiences: {audiences}")
+
+            # Fetch JWT-SVID bundle with specified audiences
+            # The SPIRE agent will return a JWT token signed by the SPIRE server
+            jwt_bundle = self._client.fetch_jwt_bundles()
+
+            # Fetch JWT-SVID with audiences (py-spiffe expects a set, not list)
+            jwt_svid = self._client.fetch_jwt_svid(audience=set(audiences))
+
+            # Extract token string
+            token = jwt_svid.token
+
+            logger.info(f"✅ JWT-SVID fetched successfully")
+            logger.info(f"   SPIFFE ID: {jwt_svid.spiffe_id}")
+            logger.info(f"   Token expires at: {jwt_svid.expiry}")
+
+            return token
+
+        except Exception as e:
+            logger.error(f"❌ Failed to fetch JWT-SVID: {e}")
+            raise
 
 
 # Global SPIRE client instance

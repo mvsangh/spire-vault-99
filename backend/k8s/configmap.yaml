@@ -16,6 +16,9 @@ data:
   # SPIRE
   SPIRE_SOCKET_PATH: "/run/spire/sockets/agent.sock"
 
+  # JWT-SVID Configuration for Vault Authentication
+  JWT_SVID_AUDIENCE: "openbao,vault"  # Comma-separated list of audiences
+
   # Vault (OpenBao)
   VAULT_ADDR: "https://openbao.openbao.svc.cluster.local:8200"
   VAULT_CACERT: "/vault/tls/ca.crt"  # Path to OpenBao CA certificate

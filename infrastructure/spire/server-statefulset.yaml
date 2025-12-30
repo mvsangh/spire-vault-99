@@ -36,6 +36,9 @@ spec:
               readOnly: true
             - name: spire-data
               mountPath: /run/spire/data
+            - name: spire-registration-socket
+              mountPath: /tmp/spire-server/private
+              readOnly: false
           livenessProbe:
             httpGet:
               path: /live
@@ -48,10 +51,31 @@ spec:
               port: 8080
             initialDelaySeconds: 5
             periodSeconds: 10
+        - name: oidc-discovery-provider
+          image: ghcr.io/spiffe/oidc-discovery-provider:1.9.6
+          args:
+            - -config
+            - /run/oidc/config/oidc-discovery-provider.conf
+          ports:
+            - containerPort: 8008
+              name: oidc-http
+              protocol: TCP
+          volumeMounts:
+            - name: oidc-config
+              mountPath: /run/oidc/config
+              readOnly: true
+            - name: spire-registration-socket
+              mountPath: /tmp/spire-server/private
+              readOnly: true
       volumes:
         - name: spire-config
           configMap:
             name: spire-server
+        - name: oidc-config
+          configMap:
+            name: oidc-discovery-provider
+        - name: spire-registration-socket
+          emptyDir: {}
   volumeClaimTemplates:
     - metadata:
         name: spire-data

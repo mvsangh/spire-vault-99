@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oidc-discovery-provider
+  namespace: spire-system
+data:
+  oidc-discovery-provider.conf: |
+    # OIDC Discovery Provider Configuration
+    # Connects to SPIRE Server to expose OIDC/JWKS endpoints for JWT-SVID validation
+
+    # Logging
+    log_level = "debug"
+
+    # Domains that this OIDC provider serves
+    domains = ["spire-server.spire-system.svc.cluster.local"]
+
+    # Connect to SPIRE Server API via Unix socket
+    server_api {
+      address = "unix:///tmp/spire-server/private/api.sock"
+    }
+
+    # HTTP listener (no TLS for internal cluster use)
+    insecure_addr = ":8008"

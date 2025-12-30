@@ -1189,17 +1189,25 @@ if __name__ == "__main__":
 
 ## 🔑 Phase 3: Vault Client Integration & Configuration
 
-**Objective:** Configure OpenBao cert auth and implement Vault client with mTLS authentication using SPIRE certificates.
+**Objective:** Configure OpenBao JWT auth and implement Vault client with JWT-SVID authentication.
+
+**⚠️ PIVOT NOTE:** Originally planned for X.509-SVID cert auth, but pivoted to JWT-SVID due to OpenBao limitation (cert auth requires CN field, SPIFFE uses URI SANs). JWT-SVID is the **official SPIFFE recommendation** for Vault/OpenBao integration. See `docs/SESSION_IMPLEMENTATION_LOG.md` for detailed investigation.
 
 ### **Tasks:**
 
 #### **Task 3.1: Create Vault Configuration Helper Script**
 
-**Description:** Create idempotent script to configure Vault cert auth, secrets engines, and policies.
+**Description:** Create idempotent script to configure Vault JWT auth (with SPIRE OIDC discovery), secrets engines, and policies.
 
 **File:** `scripts/helpers/configure-vault-backend.sh`
 
-**Content:**
+**✅ IMPLEMENTATION NOTE:** Script updated to use JWT auth instead of cert auth. Key changes:
+- Step 1: Enable JWT auth method (instead of cert auth)
+- Step 2: Configure JWT auth with SPIRE OIDC discovery URL (`http://spire-server.spire-system.svc.cluster.local:8090`)
+- Step 3: Create JWT auth role with `bound_audiences=["openbao","vault"]` and `bound_subject="spiffe://demo.local/ns/99-apps/sa/backend"`
+- Steps 4-9: KV v2, Database secrets engine, and policies (unchanged)
+
+**Content (see actual file for complete implementation):**
 ```bash
 #!/bin/bash
 set -e
@@ -1433,11 +1441,17 @@ kubectl exec -n openbao deploy/openbao -- bao policy read backend-policy
 
 #### **Task 3.3: Create Vault Client Module**
 
-**Description:** Implement Vault client with mTLS authentication using SPIRE certificates.
+**Description:** Implement Vault client with JWT authentication using SPIRE JWT-SVID.
+
+**✅ IMPLEMENTATION NOTE:** Vault client updated to use JWT-SVID authentication. Key changes:
+- `connect()` method now fetches JWT-SVID from SPIRE (instead of X.509 certificate)
+- Uses `hvac` client's `auth.jwt.login()` method (instead of `auth.cert.login()`)
+- Still supports TLS verification with CA certificate for HTTPS connections
+- Dual-mode: JWT auth for HTTPS, token auth for HTTP dev mode
 
 **File:** `backend/app/core/vault.py`
 
-**Content:**
+**Content (see actual file for complete implementation):**
 ```python
 """
 Vault (OpenBao) client for secrets management.

@@ -41,7 +41,7 @@ This demo platform consists of **2 applications** plus supporting infrastructure
   - GitHub integration pages (configure token, view repos, user profile)
   - Protected routes with JWT validation
 - **Deployment:** Kubernetes Deployment + Service
-- **SPIRE Integration:** None (frontend does not directly access Vault)
+- **SPIRE Integration:** Indirect via Cilium (receives SPIFFE ID for service mesh mTLS in Sprint 4, does not interact with SPIRE Workload API or Vault directly)
 
 #### **2. Backend Application**
 - **Technology:** Python 3.11+ with FastAPI framework
@@ -99,8 +99,10 @@ These are supporting services, not custom applications:
 | **Agent Socket Path** | `/run/spire/sockets/agent.sock` | Mounted as volume in backend pod |
 
 **SPIFFE IDs:**
-- Backend: `spiffe://demo.local/ns/default/sa/backend`
-- Frontend: `spiffe://demo.local/ns/default/sa/frontend` (issued but not used)
+- Backend: `spiffe://demo.local/ns/99-apps/sa/backend` (used for Vault JWT auth + Cilium mTLS)
+- Frontend: `spiffe://demo.local/ns/99-apps/sa/frontend` (used for Cilium mTLS only)
+
+**Note:** Frontend receives SPIFFE ID via Cilium service mesh for automatic mTLS with backend but does not interact with SPIRE Workload API in application code. Backend directly integrates with SPIRE for Vault authentication and secret management.
 
 ### **Vault Configuration**
 
@@ -109,9 +111,27 @@ These are supporting services, not custom applications:
 | **Deployment Mode** | Standalone | Single instance, sufficient for demo |
 | **Topology** | Centralized | One Vault instance serves all workloads |
 | **Storage Backend** | File (local) | Simple for demo, not production-ready |
-| **Auth Methods** | Cert auth only | Backend authenticates with SPIRE X.509-SVID |
+| **Auth Methods** | ~~Cert auth~~ **JWT auth** | Backend authenticates with SPIRE JWT-SVID (pivoted from X.509 cert auth due to OpenBao limitation - see note below) |
 | **Secrets Engines** | KV v2, Database | Static (GitHub tokens) + Dynamic (DB creds) |
 | **Seal Type** | Shamir | Manual unseal (auto-unseal not needed for demo) |
+
+**⚠️ IMPORTANT: Authentication Method Pivot (Dec 2025)**
+
+Originally planned to use X.509-SVID certificate authentication via OpenBao's `cert` auth method. During implementation (Sprint 2, Phase 3), we encountered a known OpenBao limitation: the cert auth method requires a Common Name (CN) field for entity alias creation, but SPIFFE certificates only contain URI Subject Alternative Names (URI SANs) for identity.
+
+**Error encountered:** `"missing name in alias"` when attempting cert auth login.
+
+**Root cause:** OpenBao cert auth expects CN field; SPIFFE uses URI SANs (`spiffe://demo.local/ns/99-apps/sa/backend`).
+
+**Resolution:** Pivoted to JWT-SVID authentication using OpenBao's `jwt` auth method with SPIRE's OIDC Discovery Provider. This is the **official SPIFFE-recommended approach** for Vault/OpenBao integration (see: https://spiffe.io/docs/latest/keyless/vault/).
+
+**Implementation details:** See `docs/SESSION_IMPLEMENTATION_LOG.md` for complete investigation, attempted solutions, and decision rationale.
+
+**Benefits of JWT-SVID approach:**
+- ✅ Officially supported by SPIFFE for Vault integration
+- ✅ No CN field requirement - uses SPIFFE ID directly
+- ✅ Industry-standard OIDC/JWT authentication
+- ✅ Production-ready and well-documented
 
 **Vault Paths:**
 - GitHub token: `secret/data/github/api-token`

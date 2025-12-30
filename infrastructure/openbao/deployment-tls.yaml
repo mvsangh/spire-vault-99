@@ -57,14 +57,10 @@ spec:
             - name: data
               mountPath: /vault/data
           readinessProbe:
-            exec:
-              command:
-                - /bin/sh
-                - -c
-                - |
-                  # Check if Vault is initialized and unsealed
-                  # Returns 0 if ready, non-zero if not ready
-                  bao status -format=json | jq -e '.initialized == true and .sealed == false' > /dev/null
+            httpGet:
+              path: /v1/sys/health
+              port: 8200
+              scheme: HTTPS
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 5

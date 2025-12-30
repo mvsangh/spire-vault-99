@@ -6,6 +6,7 @@ Uses environment variables following 12-factor app principles.
 import os
 from typing import Optional
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
@@ -29,6 +30,13 @@ class Settings(BaseSettings):
     # SPIRE
     SPIRE_SOCKET_PATH: str = "/run/spire/sockets/agent.sock"
     SPIFFE_ID: Optional[str] = None  # Will be fetched from SPIRE
+
+    # JWT-SVID Configuration - computed property to avoid Pydantic JSON parsing
+    @property
+    def JWT_SVID_AUDIENCE(self) -> list[str]:
+        """Get JWT-SVID audiences as list from comma-separated env var."""
+        audiences_str = os.getenv("JWT_SVID_AUDIENCE", "openbao,vault")
+        return [aud.strip() for aud in audiences_str.split(",")]
 
     # Vault (OpenBao)
     VAULT_ADDR: str = os.getenv(

@@ -1,6 +1,6 @@
 """
 Vault (OpenBao) client for secrets management.
-Authenticates using SPIRE X.509-SVID via mTLS.
+Authenticates using SPIRE JWT-SVID via JWT auth method.
 """
 
 import logging
@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 
 class VaultClient:
     """
-    OpenBao client with mTLS authentication using SPIRE certificates.
+    OpenBao client with JWT authentication using SPIRE JWT-SVID.
+    Falls back to token auth for HTTP dev mode.
     """
 
     def __init__(self):
@@ -32,48 +33,59 @@ class VaultClient:
 
     async def connect(self) -> None:
         """
-        Connect to Vault and authenticate using SPIRE certificate (HTTPS) or token (HTTP dev mode).
+        Connect to Vault and authenticate using SPIRE JWT-SVID (production) or token (dev mode).
         """
         try:
             # Check if we're using HTTPS (production) or HTTP (dev mode)
             is_https = self.vault_addr.startswith('https://')
 
             if is_https:
-                # Production mode: Use cert authentication with SPIRE certificate
-                logger.info("Connecting to Vault with SPIRE certificate (HTTPS)...")
+                # Production mode: Use JWT authentication with SPIRE JWT-SVID
+                logger.info("Connecting to Vault with SPIRE JWT-SVID (JWT auth)...")
 
-                # Get SPIRE certificate and key
-                cert_pem = spire_client.get_certificate_pem()
-                key_pem = spire_client.get_private_key_pem()
+                # Fetch JWT-SVID from SPIRE with appropriate audiences
+                from app.config import settings
+                audiences = settings.JWT_SVID_AUDIENCE
+                jwt_token = spire_client.fetch_jwt_svid(audiences=audiences)
 
-                # Write cert and key to temporary files (required by hvac)
-                with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.pem') as cert_file:
-                    cert_file.write(cert_pem)
-                    cert_path = cert_file.name
+                # Create Vault client (HTTPS)
+                # Note: We can still verify TLS even without using cert auth
+                import os
+                vault_ca_path = None
+                if self.vault_cacert:
+                    # Resolve symlink to actual file (ConfigMap mounts use symlinks)
+                    resolved_ca_path = os.path.realpath(self.vault_cacert)
+                    if os.path.isfile(resolved_ca_path):
+                        # Read CA cert and write to temp file for hvac
+                        with open(resolved_ca_path, 'rb') as ca_file:
+                            ca_cert_data = ca_file.read()
 
-                with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.pem') as key_file:
-                    key_file.write(key_pem)
-                    key_path = key_file.name
+                        with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.crt') as ca_temp:
+                            ca_temp.write(ca_cert_data)
+                            vault_ca_path = ca_temp.name
 
-                # Create Vault client with mTLS
-                # Use CA certificate for verification if available
-                verify_param = self.vault_cacert if self.vault_cacert else False
+                # Use CA cert for TLS server verification if available
+                verify_param = vault_ca_path if vault_ca_path else False
 
                 self._client = hvac.Client(
                     url=self.vault_addr,
-                    cert=(cert_path, key_path),
                     verify=verify_param
                 )
 
-                # Authenticate using cert auth
-                auth_response = self._client.auth.cert.login()
+                # Authenticate using JWT auth
+                # Specify the role name created in configure-vault-backend.sh
+                auth_response = self._client.auth.jwt.jwt_login(
+                    role='backend-role',
+                    jwt=jwt_token
+                )
 
                 self._authenticated = True
-                logger.info(f"✅ Vault authenticated (cert) - Token TTL: {auth_response['auth']['lease_duration']}s")
-                logger.info(f"Vault policies: {auth_response['auth']['policies']}")
+                logger.info(f"✅ Vault authenticated (JWT) - Token TTL: {auth_response['auth']['lease_duration']}s")
+                logger.info(f"   Vault policies: {auth_response['auth']['policies']}")
+                logger.info(f"   Entity ID: {auth_response['auth'].get('entity_id', 'N/A')}")
 
             else:
-                # Dev mode (HTTP): Cert auth requires TLS, so use token auth instead
+                # Dev mode (HTTP): Use token auth for local development
                 logger.info("Connecting to Vault with token (HTTP dev mode)...")
 
                 # Use root token for dev mode
