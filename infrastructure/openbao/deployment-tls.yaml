@@ -1,0 +1,112 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openbao
+  namespace: openbao
+  labels:
+    app: openbao
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openbao
+  template:
+    metadata:
+      labels:
+        app: openbao
+    spec:
+      serviceAccountName: openbao
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 100
+      containers:
+        - name: openbao
+          image: quay.io/openbao/openbao:2.0.1
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - |
+              # Start OpenBao server with production configuration
+              exec bao server -config=/vault/config/config.hcl
+          ports:
+            - containerPort: 8200
+              name: https
+              protocol: TCP
+            - containerPort: 8201
+              name: https-internal
+              protocol: TCP
+          env:
+            - name: BAO_ADDR
+              value: "https://127.0.0.1:8200"
+            - name: BAO_SKIP_VERIFY
+              value: "true"  # For demo with self-signed certs; use "false" in production with proper CA
+            - name: BAO_LOG_LEVEL
+              value: "info"
+            - name: BAO_LOG_FORMAT
+              value: "json"
+          volumeMounts:
+            - name: config
+              mountPath: /vault/config
+              readOnly: true
+            - name: tls
+              mountPath: /vault/tls
+              readOnly: true
+            - name: data
+              mountPath: /vault/data
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  # Check if Vault is initialized and unsealed
+                  # Returns 0 if ready, non-zero if not ready
+                  bao status -format=json | jq -e '.initialized == true and .sealed == false' > /dev/null
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /v1/sys/health?standbyok=true&uninitcode=204
+              port: 8200
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: config
+          configMap:
+            name: openbao-config
+        - name: tls
+          secret:
+            secretName: openbao-tls
+            defaultMode: 0400
+        - name: data
+          persistentVolumeClaim:
+            claimName: openbao-data
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openbao
+  namespace: openbao
+  labels:
+    app: openbao

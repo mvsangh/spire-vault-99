@@ -35,6 +35,9 @@ spec:
         - name: spire-agent-socket
           mountPath: /run/spire/sockets
           readOnly: true
+        - name: vault-ca
+          mountPath: /vault/tls
+          readOnly: true
 
         # Health probes
         livenessProbe:
@@ -70,3 +73,9 @@ spec:
         hostPath:
           path: /run/spire/sockets
           type: DirectoryOrCreate
+      - name: vault-ca
+        configMap:
+          name: vault-ca
+          items:
+          - key: ca.crt
+            path: ca.crt

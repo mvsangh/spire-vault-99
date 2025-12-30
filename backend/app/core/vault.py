@@ -22,6 +22,7 @@ class VaultClient:
     def __init__(self):
         """Initialize Vault client."""
         self.vault_addr = settings.VAULT_ADDR
+        self.vault_cacert = settings.VAULT_CACERT
         self.kv_path = settings.VAULT_KV_PATH
         self.db_path = settings.VAULT_DB_PATH
         self.db_role = settings.VAULT_DB_ROLE
@@ -55,10 +56,13 @@ class VaultClient:
                     key_path = key_file.name
 
                 # Create Vault client with mTLS
+                # Use CA certificate for verification if available
+                verify_param = self.vault_cacert if self.vault_cacert else False
+
                 self._client = hvac.Client(
                     url=self.vault_addr,
                     cert=(cert_path, key_path),
-                    verify=False  # Dev mode - use True with CA bundle in production
+                    verify=verify_param
                 )
 
                 # Authenticate using cert auth

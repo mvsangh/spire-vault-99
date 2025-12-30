@@ -35,6 +35,7 @@ class Settings(BaseSettings):
         "VAULT_ADDR",
         "http://openbao.openbao.svc.cluster.local:8200"
     )
+    VAULT_CACERT: Optional[str] = os.getenv("VAULT_CACERT")  # Path to CA certificate for TLS verification
     VAULT_NAMESPACE: Optional[str] = None
     VAULT_KV_PATH: str = "secret"  # KV v2 mount path
     VAULT_DB_PATH: str = "database"  # Database secrets engine path

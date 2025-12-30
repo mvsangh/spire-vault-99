@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: openbao-data
+  namespace: openbao
+  labels:
+    app: openbao
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  # For kind cluster, this will use local-path provisioner
+  # In production, use appropriate storage class for your cloud provider
+  # storageClassName: standard
