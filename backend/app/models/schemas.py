@@ -66,7 +66,7 @@ class UserResponse(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    """Schema for JWT token response."""
+    """Schema for JWT token response (legacy - for backward compatibility)."""
     access_token: str
     token_type: str = "bearer"
     expires_in: int  # seconds
@@ -77,6 +77,27 @@ class TokenResponse(BaseModel):
                 "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                 "token_type": "bearer",
                 "expires_in": 3600
+            }
+        }
+    )
+
+
+class AuthResponse(BaseModel):
+    """Schema for authentication response (httpOnly cookie - no token in body)."""
+    message: str
+    user: Optional[UserResponse] = None
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "message": "Login successful",
+                "user": {
+                    "id": 1,
+                    "username": "jake",
+                    "email": "jake@precinct99.com",
+                    "created_at": "2025-01-01T12:00:00",
+                    "updated_at": "2025-01-01T12:00:00"
+                }
             }
         }
     )

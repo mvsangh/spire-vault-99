@@ -3,15 +3,15 @@ Authentication endpoints (register, login, user info).
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import db_manager
-from app.core.auth import hash_password, verify_password, create_access_token, get_token_expiration_seconds
+from app.core.auth import hash_password, verify_password, create_access_token, get_token_expiration_seconds, set_auth_cookie, clear_auth_cookie
 from app.middleware.auth import get_current_user, CurrentUser
 from app.models.models import User
-from app.models.schemas import UserCreate, UserLogin, UserResponse, TokenResponse, MessageResponse
+from app.models.schemas import UserCreate, UserLogin, UserResponse, TokenResponse, AuthResponse, MessageResponse
 
 logger = logging.getLogger(__name__)
 
@@ -82,12 +82,12 @@ async def register(user_data: UserCreate):
 
 @router.post(
     "/login",
-    response_model=TokenResponse,
+    response_model=AuthResponse,
     status_code=status.HTTP_200_OK,
     summary="User login",
-    description="Authenticate user and return JWT access token"
+    description="Authenticate user and set httpOnly cookie with JWT token"
 )
-async def login(login_data: UserLogin):
+async def login(login_data: UserLogin, response: Response):
     """
     User login.
 
@@ -95,7 +95,8 @@ async def login(login_data: UserLogin):
     - Fetches user from database
     - Verifies password with bcrypt
     - Generates JWT token
-    - Returns token with expiration time
+    - Sets httpOnly cookie (token NOT returned in response body)
+    - Returns success message and user data
     """
     async with db_manager.get_session() as session:
         # Fetch user by username
@@ -109,7 +110,6 @@ async def login(login_data: UserLogin):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid username or password",
-                headers={"WWW-Authenticate": "Bearer"},
             )
 
         # Verify password
@@ -118,7 +118,6 @@ async def login(login_data: UserLogin):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid username or password",
-                headers={"WWW-Authenticate": "Bearer"},
             )
 
         # Create access token
@@ -128,13 +127,39 @@ async def login(login_data: UserLogin):
         }
         access_token = create_access_token(token_data)
 
+        # Set httpOnly cookie
+        set_auth_cookie(response, access_token)
+
         logger.info(f"User logged in: {user.username}")
 
-        return TokenResponse(
-            access_token=access_token,
-            token_type="bearer",
-            expires_in=get_token_expiration_seconds()
+        return AuthResponse(
+            message="Login successful",
+            user=UserResponse.model_validate(user)
         )
+
+
+@router.post(
+    "/logout",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK,
+    summary="User logout",
+    description="Clear authentication cookie and logout user"
+)
+async def logout(response: Response, current_user: CurrentUser = Depends(get_current_user)):
+    """
+    User logout.
+
+    - Protected route (requires valid JWT token)
+    - Clears the httpOnly authentication cookie
+    - Returns success message
+    """
+    clear_auth_cookie(response)
+
+    logger.info(f"User logged out: {current_user.username}")
+
+    return MessageResponse(
+        message=f"Logout successful. Goodbye, {current_user.username}!"
+    )
 
 
 @router.get(

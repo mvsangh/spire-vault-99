@@ -21,11 +21,16 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
-    # CORS
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8000"]
-    CORS_CREDENTIALS: bool = True
-    CORS_METHODS: list[str] = ["*"]
-    CORS_HEADERS: list[str] = ["*"]
+    # CORS (httpOnly cookie authentication requires allow_credentials=True)
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:3001",  # Frontend dev server (Next.js)
+        "http://localhost:8000",
+        "http://frontend.99-apps.svc.cluster.local:3000",  # Kubernetes service
+    ]
+    CORS_CREDENTIALS: bool = True  # Required for cookies
+    CORS_METHODS: list[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    CORS_HEADERS: list[str] = ["Content-Type", "Authorization"]
 
     # SPIRE
     SPIRE_SOCKET_PATH: str = "/run/spire/sockets/agent.sock"

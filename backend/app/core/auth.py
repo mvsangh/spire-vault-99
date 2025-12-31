@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import bcrypt
 from jose import JWTError, jwt
+from fastapi import Response, Request, HTTPException, status
 
 from app.config import settings
 
@@ -102,3 +103,66 @@ def get_token_expiration_seconds() -> int:
         Token expiration time in seconds
     """
     return settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60
+
+
+# ============================================================================
+# Cookie-based Authentication Functions
+# ============================================================================
+
+def set_auth_cookie(response: Response, token: str) -> None:
+    """
+    Set httpOnly authentication cookie in response.
+
+    Args:
+        response: FastAPI Response object
+        token: JWT access token
+    """
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,  # Prevents JavaScript access (XSS protection)
+        secure=False,  # Set to True in production (HTTPS only)
+        samesite="lax",  # CSRF protection
+        max_age=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Convert to seconds
+        path="/",
+    )
+    logger.debug("Auth cookie set (httpOnly, SameSite=Lax)")
+
+
+def clear_auth_cookie(response: Response) -> None:
+    """
+    Clear authentication cookie (for logout).
+
+    Args:
+        response: FastAPI Response object
+    """
+    response.delete_cookie(
+        key="access_token",
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        path="/",
+    )
+    logger.debug("Auth cookie cleared")
+
+
+def get_token_from_cookie(request: Request) -> str:
+    """
+    Extract JWT token from httpOnly cookie.
+
+    Args:
+        request: FastAPI Request object
+
+    Returns:
+        JWT token string
+
+    Raises:
+        HTTPException: If cookie not found
+    """
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated - no auth cookie found",
+        )
+    return token
