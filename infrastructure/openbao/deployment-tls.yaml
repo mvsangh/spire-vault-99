@@ -58,22 +58,22 @@ spec:
               mountPath: /vault/data
           readinessProbe:
             httpGet:
-              path: /v1/sys/health
+              path: /v1/sys/health?sealedcode=200&uninitcode=200
               port: 8200
               scheme: HTTPS
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 5
-            failureThreshold: 3
+            failureThreshold: 30  # Allow time for manual unsealing
           livenessProbe:
             httpGet:
-              path: /v1/sys/health?standbyok=true&uninitcode=204
+              path: /v1/sys/health?standbyok=true&sealedcode=200&uninitcode=200
               port: 8200
               scheme: HTTPS
             initialDelaySeconds: 30
             periodSeconds: 20
             timeoutSeconds: 5
-            failureThreshold: 3
+            failureThreshold: 30  # Allow time for manual unsealing
           resources:
             requests:
               cpu: 250m
