@@ -18,7 +18,7 @@ spec:
       serviceAccountName: backend
       containers:
       - name: backend
-        image: spire-vault-99/backend:v3  # Updated with JWT refresh fix and Docker fix
+        image: spire-vault-99/backend:v4  # Single worker for demo with credential rotation
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000

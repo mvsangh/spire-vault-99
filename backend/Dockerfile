@@ -38,5 +38,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"
 
-# Run with uvicorn (production mode, multiple workers)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+# Run with uvicorn (single worker for demo with credential rotation)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
