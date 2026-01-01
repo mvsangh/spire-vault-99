@@ -32,7 +32,7 @@ metadata:
   name: postgresql-ingress-policy
   namespace: 99-apps
 spec:
-  description: "Only allow backend to access PostgreSQL database"
+  description: "Allow backend and OpenBao to access PostgreSQL database"
   endpointSelector:
     matchLabels:
       app: postgresql
@@ -41,6 +41,14 @@ spec:
   - fromEndpoints:
     - matchLabels:
         app: backend
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+  # Allow all pods from OpenBao namespace (for dynamic credential generation)
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: openbao
     toPorts:
     - ports:
       - port: "5432"
@@ -59,28 +67,18 @@ spec:
     matchLabels:
       app: openbao
   ingress:
-  # Allow all traffic from 99-apps namespace
+  # Allow all pods from 99-apps namespace
   - fromEndpoints:
-    - {}
-    fromRequires:
-    - matchExpressions:
-      - key: k8s:io.kubernetes.pod.namespace
-        operator: In
-        values:
-        - "99-apps"
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: 99-apps
     toPorts:
     - ports:
       - port: "8200"
         protocol: TCP
-  # Allow from same namespace
+  # Allow from same namespace (for init scripts)
   - fromEndpoints:
-    - {}
-    fromRequires:
-    - matchExpressions:
-      - key: k8s:io.kubernetes.pod.namespace
-        operator: In
-        values:
-        - "openbao"
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: openbao
     toPorts:
     - ports:
       - port: "8200"
@@ -129,32 +127,18 @@ spec:
     matchLabels:
       app: spire-server
   ingress:
-  # Allow from SPIRE agents
+  # Allow all from spire-system namespace (agents + CLI)
   - fromEndpoints:
     - matchLabels:
-        app: spire-agent
+        k8s:io.kubernetes.pod.namespace: spire-system
     toPorts:
     - ports:
       - port: "8081"
         protocol: TCP
-  # Allow from application namespace (for JWT-SVID fetching)
+  # Allow all pods from application namespace (for JWT-SVID fetching)
   - fromEndpoints:
-    - matchExpressions:
-      - key: io.cilium.k8s.policy.namespace
-        operator: In
-        values:
-        - 99-apps
-    toPorts:
-    - ports:
-      - port: "8081"
-        protocol: TCP
-  # Allow from same namespace (for CLI access)
-  - fromEndpoints:
-    - matchExpressions:
-      - key: io.cilium.k8s.policy.namespace
-        operator: In
-        values:
-        - spire-system
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: 99-apps
     toPorts:
     - ports:
       - port: "8081"
