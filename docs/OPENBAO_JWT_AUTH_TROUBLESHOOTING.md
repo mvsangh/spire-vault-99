@@ -171,6 +171,11 @@ path "database/creds/backend-role" {
   capabilities = ["read"]
 }
 
+# Allow revoking leases (for credential rotation cleanup)
+path "sys/leases/revoke" {
+  capabilities = ["update"]
+}
+
 # Renew own token
 path "auth/token/renew-self" {
   capabilities = ["update"]
@@ -192,7 +197,29 @@ kubectl exec -n openbao deploy/openbao -- \
   bao secrets list
 ```
 
-If database secrets engine is missing:
+**Expected output should include:**
+- `secret/` - KV v2 secrets engine (for GitHub tokens)
+- `database/` - Database secrets engine (for dynamic PostgreSQL credentials)
+
+#### If KV v2 secrets engine is missing:
+
+**Error you might see in backend logs:**
+```
+ERROR - ❌ Failed to write secret to secret/data/github/user-7/token:
+no handler for route "secret/data/github/user-7/token". route entry not found.
+```
+
+**Fix:**
+```bash
+# Enable KV v2 secrets engine at path "secret/"
+kubectl exec -n openbao deploy/openbao -- \
+  env BAO_ADDR=https://127.0.0.1:8200 BAO_SKIP_VERIFY=true BAO_TOKEN="${ROOT_TOKEN}" \
+  bao secrets enable -path=secret kv-v2
+```
+
+Expected output: `Success! Enabled the kv-v2 secrets engine at: secret/`
+
+#### If database secrets engine is missing:
 
 ```bash
 # Enable database secrets engine

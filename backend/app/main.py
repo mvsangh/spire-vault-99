@@ -63,6 +63,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Shutting down application...")
     await db_manager.close()
+    await vault_client.close()
     await spire_client.close()
     logger.info("Shutdown complete")
 
