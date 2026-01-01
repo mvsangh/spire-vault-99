@@ -18,6 +18,10 @@ spec:
       hostPID: true
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
       containers:
         - name: spire-agent
           image: ghcr.io/spiffe/spire-agent:1.9.6
@@ -33,6 +37,8 @@ spec:
               readOnly: true
             - name: spire-agent-socket
               mountPath: /run/spire/sockets
+            - name: spire-admin-socket
+              mountPath: /run/spire/admin-sockets
             - name: spire-token
               mountPath: /var/run/secrets/tokens
           livenessProbe:
@@ -57,6 +63,10 @@ spec:
         - name: spire-agent-socket
           hostPath:
             path: /run/spire/sockets
+            type: DirectoryOrCreate
+        - name: spire-admin-socket
+          hostPath:
+            path: /run/spire/admin-sockets
             type: DirectoryOrCreate
         - name: spire-token
           projected:
