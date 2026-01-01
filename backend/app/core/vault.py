@@ -119,16 +119,21 @@ class VaultClient:
         )
 
         self._authenticated = True
-        logger.info(f"✅ Vault authenticated (JWT) - Token TTL: {auth_response['auth']['lease_duration']}s")
+        ttl = auth_response['auth']['lease_duration']
+        logger.info(f"✅ Vault authenticated (JWT) - Token TTL: {ttl}s ({ttl//60} minutes)")
         logger.info(f"   Vault policies: {auth_response['auth']['policies']}")
         logger.info(f"   Entity ID: {auth_response['auth'].get('entity_id', 'N/A')}")
+
+        # Verify authentication was successful
+        if not self._client.is_authenticated():
+            raise RuntimeError("JWT authentication succeeded but Vault client is not authenticated")
 
     async def _jwt_refresh_loop(self) -> None:
         """
         Background task that refreshes JWT-SVID and re-authenticates to Vault.
-        Runs every 50 minutes to stay ahead of 1-hour JWT-SVID TTL.
+        Runs every 45 minutes to stay safely ahead of 1-hour JWT-SVID TTL.
         """
-        refresh_interval = 3000  # 50 minutes in seconds
+        refresh_interval = 2700  # 45 minutes in seconds (1800s for 30min if needed)
 
         while True:
             try:
@@ -150,8 +155,22 @@ class VaultClient:
                 # Don't break - keep trying at next interval
 
     def is_authenticated(self) -> bool:
-        """Check if authenticated to Vault."""
-        return self._authenticated and self._client is not None and self._client.is_authenticated()
+        """Check if authenticated to Vault with a valid token."""
+        if not self._authenticated or self._client is None:
+            return False
+
+        # Check if hvac client has a token
+        if not self._client.is_authenticated():
+            return False
+
+        # Check if the token is still valid (not expired)
+        auth_info = self._client.auth.token.lookup_self()
+        if 'errors' in auth_info or auth_info.get('data', {}).get('expire_time') is None:
+            logger.warning("Vault token is invalid or expired")
+            self._authenticated = False
+            return False
+
+        return True
 
     async def close(self) -> None:
         """Close Vault client and cancel background tasks."""
@@ -171,8 +190,8 @@ class VaultClient:
             path: Secret path (e.g., "github/api-token")
             data: Secret data (dict)
         """
-        if not self.is_authenticated():
-            raise RuntimeError("Not authenticated to Vault")
+        # Ensure authenticated before operation
+        await self._ensure_authenticated()
 
         full_path = f"{self.kv_path}/data/{path}"
 
@@ -197,8 +216,8 @@ class VaultClient:
         Returns:
             Secret data (dict)
         """
-        if not self.is_authenticated():
-            raise RuntimeError("Not authenticated to Vault")
+        # Ensure authenticated before operation
+        await self._ensure_authenticated()
 
         full_path = f"{self.kv_path}/data/{path}"
 
@@ -220,8 +239,8 @@ class VaultClient:
         Returns:
             Dict with 'username', 'password', and 'lease_id'
         """
-        if not self.is_authenticated():
-            raise RuntimeError("Not authenticated to Vault")
+        # Ensure authenticated before operation
+        await self._ensure_authenticated()
 
         try:
             response = self._client.read(f"{self.db_path}/creds/{self.db_role}")
@@ -250,8 +269,8 @@ class VaultClient:
         Args:
             lease_id: Lease ID to revoke
         """
-        if not self.is_authenticated():
-            raise RuntimeError("Not authenticated to Vault")
+        # Ensure authenticated before operation
+        await self._ensure_authenticated()
 
         try:
             self._client.sys.revoke_lease(lease_id)
@@ -259,6 +278,20 @@ class VaultClient:
         except Exception as e:
             logger.error(f"❌ Failed to revoke lease {lease_id}: {e}")
             # Don't raise - lease will expire anyway
+
+    async def _ensure_authenticated(self) -> None:
+        """
+        Ensure the Vault client is authenticated with a valid token.
+        Re-authenticates if token is expired or missing.
+        """
+        if self.is_authenticated():
+            # Token is still valid
+            return
+
+        # Token is expired or missing - re-authenticate
+        logger.info("🔄 Vault token expired or missing, re-authenticating...")
+        await self._authenticate_with_jwt()
+        logger.info("✅ Vault re-authentication successful")
 
 
 # Global Vault client instance

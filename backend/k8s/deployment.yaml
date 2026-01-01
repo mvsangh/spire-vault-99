@@ -18,7 +18,7 @@ spec:
       serviceAccountName: backend
       containers:
       - name: backend
-        image: backend:dev  # Tilt will build and inject this
+        image: spire-vault-99/backend:v3  # Updated with JWT refresh fix and Docker fix
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
