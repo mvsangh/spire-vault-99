@@ -10,9 +10,9 @@ spec:
       port: 8081
       targetPort: 8081
       protocol: TCP
-    - name: oidc-http
-      port: 80
-      targetPort: 8008
+    - name: oidc-discovery
+      port: 8090
+      targetPort: 8090
       protocol: TCP
   selector:
     app: spire-server

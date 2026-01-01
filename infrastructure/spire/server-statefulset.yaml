@@ -57,7 +57,7 @@ spec:
             - -config
             - /run/oidc/config/oidc-discovery-provider.conf
           ports:
-            - containerPort: 8008
+            - containerPort: 8090
               name: oidc-http
               protocol: TCP
           volumeMounts:
