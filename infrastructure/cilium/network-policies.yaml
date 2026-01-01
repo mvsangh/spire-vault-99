@@ -1,0 +1,181 @@
+# Cilium Network Policies for SPIRE-Vault-99
+# Zero-trust network policies using label-based and namespace-based selectors
+# SPIFFE-based policies ready for Cilium 1.16+ when mTLS authentication is GA
+
+---
+# Policy 1: Backend Ingress - Only Frontend can access Backend
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: backend-ingress-policy
+  namespace: 99-apps
+spec:
+  description: "Only allow frontend to access backend API"
+  endpointSelector:
+    matchLabels:
+      app: backend
+  ingress:
+  # Allow from frontend pods in same namespace
+  - fromEndpoints:
+    - matchLabels:
+        app: frontend
+    toPorts:
+    - ports:
+      - port: "8000"
+        protocol: TCP
+
+---
+# Policy 2: PostgreSQL Ingress - Only Backend can access Database
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: postgresql-ingress-policy
+  namespace: 99-apps
+spec:
+  description: "Only allow backend to access PostgreSQL database"
+  endpointSelector:
+    matchLabels:
+      app: postgresql
+  ingress:
+  # Allow from backend pods in same namespace
+  - fromEndpoints:
+    - matchLabels:
+        app: backend
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+
+---
+# Policy 3: OpenBao Ingress - Only Backend can access Vault
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: openbao-ingress-policy
+  namespace: openbao
+spec:
+  description: "Only allow backend from 99-apps namespace to access OpenBao"
+  endpointSelector:
+    matchLabels:
+      app: openbao
+  ingress:
+  # Allow all traffic from 99-apps namespace
+  - fromEndpoints:
+    - {}
+    fromRequires:
+    - matchExpressions:
+      - key: k8s:io.kubernetes.pod.namespace
+        operator: In
+        values:
+        - "99-apps"
+    toPorts:
+    - ports:
+      - port: "8200"
+        protocol: TCP
+  # Allow from same namespace
+  - fromEndpoints:
+    - {}
+    fromRequires:
+    - matchExpressions:
+      - key: k8s:io.kubernetes.pod.namespace
+        operator: In
+        values:
+        - "openbao"
+    toPorts:
+    - ports:
+      - port: "8200"
+        protocol: TCP
+
+---
+# Policy 4: Frontend Ingress - Allow external access via NodePort
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: frontend-ingress-policy
+  namespace: 99-apps
+spec:
+  description: "Allow external access to frontend via NodePort and internal health checks"
+  endpointSelector:
+    matchLabels:
+      app: frontend
+  ingress:
+  # Allow from anywhere (NodePort access)
+  - fromEntities:
+    - world
+    - host
+    toPorts:
+    - ports:
+      - port: "3000"
+        protocol: TCP
+  # Allow from same namespace (health checks)
+  - fromEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: 99-apps
+    toPorts:
+    - ports:
+      - port: "3000"
+        protocol: TCP
+
+---
+# Policy 5: SPIRE Server Ingress - Allow agents and workloads
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: spire-server-ingress-policy
+  namespace: spire-system
+spec:
+  description: "Allow SPIRE agents and application workloads to connect to SPIRE server"
+  endpointSelector:
+    matchLabels:
+      app: spire-server
+  ingress:
+  # Allow from SPIRE agents
+  - fromEndpoints:
+    - matchLabels:
+        app: spire-agent
+    toPorts:
+    - ports:
+      - port: "8081"
+        protocol: TCP
+  # Allow from application namespace (for JWT-SVID fetching)
+  - fromEndpoints:
+    - matchExpressions:
+      - key: io.cilium.k8s.policy.namespace
+        operator: In
+        values:
+        - 99-apps
+    toPorts:
+    - ports:
+      - port: "8081"
+        protocol: TCP
+  # Allow from same namespace (for CLI access)
+  - fromEndpoints:
+    - matchExpressions:
+      - key: io.cilium.k8s.policy.namespace
+        operator: In
+        values:
+        - spire-system
+    toPorts:
+    - ports:
+      - port: "8081"
+        protocol: TCP
+
+---
+# Policy 6: Default Deny for 99-apps namespace
+# This policy denies all traffic not explicitly allowed by other policies
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: 99-apps
+spec:
+  description: "Default deny all ingress traffic not explicitly allowed"
+  endpointSelector: {}
+  # Empty ingress array = deny all ingress
+  ingress: []
+
+# Note: For SPIFFE-based policies (future Cilium versions):
+# Replace label-based selectors with:
+#   - fromSPIFFE:
+#     - "spiffe://demo.local/ns/99-apps/sa/frontend"
+#     - "spiffe://demo.local/ns/99-apps/sa/backend"
