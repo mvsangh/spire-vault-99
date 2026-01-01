@@ -17,13 +17,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Accept build argument for API URL
-ARG NEXT_PUBLIC_API_URL=http://localhost:30001
-
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 # Build the application
 RUN npm run build
@@ -45,6 +41,10 @@ COPY --from=builder /app/public ./public
 # Set correct permissions for standalone output
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# CRITICAL: Manually copy API routes (Next.js 16 standalone bug workaround)
+# Standalone mode doesn't always include app/api routes properly
+COPY --from=builder --chown=nextjs:nodejs /app/.next/server/app/api ./.next/server/app/api
 
 USER nextjs
 

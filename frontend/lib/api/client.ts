@@ -11,7 +11,9 @@ import type {
   APIError,
 } from '@/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// API URL now points to Next.js API routes (same origin, no CORS)
+// Next.js routes will proxy to backend internally
+const API_URL = '/api';
 
 // Create axios instance with default config
 const apiClient: AxiosInstance = axios.create({
@@ -34,51 +36,51 @@ apiClient.interceptors.response.use(
   }
 );
 
-// Auth API
+// Auth API (paths updated to match Next.js API routes)
 export const authAPI = {
   register: async (data: RegisterRequest): Promise<AuthResponse> => {
-    const response = await apiClient.post<AuthResponse>('/api/v1/auth/register', data);
+    const response = await apiClient.post<AuthResponse>('/auth/register', data);
     return response.data;
   },
 
   login: async (data: LoginRequest): Promise<AuthResponse> => {
-    const response = await apiClient.post<AuthResponse>('/api/v1/auth/login', data);
+    const response = await apiClient.post<AuthResponse>('/auth/login', data);
     return response.data;
   },
 
   logout: async (): Promise<void> => {
-    await apiClient.post('/api/v1/auth/logout');
+    await apiClient.post('/auth/logout');
   },
 
   getCurrentUser: async (): Promise<User> => {
-    const response = await apiClient.get<User>('/api/v1/auth/me');
+    const response = await apiClient.get<User>('/auth/me');
     return response.data;
   },
 };
 
-// GitHub API
+// GitHub API (paths updated to match Next.js API routes)
 export const githubAPI = {
   configure: async (token: string): Promise<{ message: string }> => {
     const data: GitHubConfigureRequest = { token };
-    const response = await apiClient.post('/api/v1/github/configure', data);
+    const response = await apiClient.post('/github/configure', data);
     return response.data;
   },
 
   getRepositories: async (): Promise<GitHubRepo[]> => {
-    const response = await apiClient.get<GitHubRepo[]>('/api/v1/github/repos');
+    const response = await apiClient.get<GitHubRepo[]>('/github/repos');
     return response.data;
   },
 
   getUser: async (): Promise<GitHubUser> => {
-    const response = await apiClient.get<GitHubUser>('/api/v1/github/user');
+    const response = await apiClient.get<GitHubUser>('/github/user');
     return response.data;
   },
 };
 
-// Health API
+// Health API (path updated to match Next.js API route)
 export const healthAPI = {
   check: async (): Promise<HealthResponse> => {
-    const response = await apiClient.get<HealthResponse>('/api/v1/health/ready');
+    const response = await apiClient.get<HealthResponse>('/health/ready');
     return response.data;
   },
 };

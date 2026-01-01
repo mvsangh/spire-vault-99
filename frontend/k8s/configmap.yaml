@@ -6,8 +6,9 @@ metadata:
   labels:
     app: frontend
 data:
-  # Backend API URL (accessible from browser via NodePort)
-  NEXT_PUBLIC_API_URL: "http://localhost:30001"
+  # Backend URL for server-side API calls (internal cluster DNS)
+  # NOT prefixed with NEXT_PUBLIC_ because it's server-side only
+  BACKEND_URL: "http://backend.99-apps.svc.cluster.local:8000"
 
   # Application metadata
   NEXT_PUBLIC_APP_NAME: "SPIRE-Vault-99"
