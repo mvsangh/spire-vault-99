@@ -279,24 +279,217 @@ agent {
    - Added `kube-system:cilium-operator` to service account allow list
    - Server restarted and healthy
 
-### ⏳ Remaining Work
+### ⏳ Remaining Work - DETAILED NEXT STEPS
 
-1. **Update Cilium Configuration:**
-   - Modify `infrastructure/cilium/values.yaml` to use correct admin socket path
-   - Set `adminSocketPath: /run/spire/admin-sockets/admin.sock`
+#### Step 1: Update Cilium Configuration (5 minutes)
 
-2. **Create SPIRE Registration Entries:**
-   - Create entry for `cilium` service account
-   - Create entry for `cilium-operator` service account
+**File to Edit:** `infrastructure/cilium/values.yaml`
 
-3. **Upgrade Cilium:**
-   - Run helm upgrade with SPIFFE integration enabled
-   - Verify Cilium pods restart successfully
+**Current state:** The file already has SPIRE integration partially configured with the OLD socket path.
 
-4. **Testing:**
-   - Verify SPIFFE integration in cilium status
-   - Observe mTLS with Hubble (optional)
-   - Confirm application still functions
+**Required change:** Update the `adminSocketPath` to use the correct directory:
+
+```yaml
+# SPIRE integration (Sprint 4 - Phase 4C)
+authentication:
+  mutual:
+    spire:
+      enabled: true
+      install:
+        enabled: false  # Use existing SPIRE installation
+      # Connect to existing SPIRE server
+      serverAddress: spire-server.spire-system.svc.cluster.local:8081
+      trustDomain: "demo.local"
+      # Socket paths for SPIRE agent communication
+      # CRITICAL: admin socket must be in DIFFERENT directory than agent socket
+      adminSocketPath: /run/spire/admin-sockets/admin.sock  # ← UPDATE THIS
+      agentSocketPath: /run/spire/sockets/agent.sock
+```
+
+**Edit command:**
+```bash
+# The line currently says: adminSocketPath: /run/spire/sockets/admin.sock
+# Change it to:            adminSocketPath: /run/spire/admin-sockets/admin.sock
+```
+
+#### Step 2: Create SPIRE Registration Entries (10 minutes)
+
+**Purpose:** Register Cilium components with SPIRE so they can obtain SPIFFE identities.
+
+**Entry 1: Cilium Agent**
+
+```bash
+# Get the node name for parentID
+NODE_NAME=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+
+# Create registration entry
+kubectl exec -n spire-system spire-server-0 -c spire-server -- \
+  /opt/spire/bin/spire-server entry create \
+  -spiffeID spiffe://demo.local/ns/kube-system/sa/cilium \
+  -parentID spiffe://demo.local/spire/agent/k8s_psat/precinct-99/${NODE_NAME} \
+  -selector k8s:ns:kube-system \
+  -selector k8s:sa:cilium \
+  -ttl 3600
+
+# Verify entry was created
+kubectl exec -n spire-system spire-server-0 -c spire-server -- \
+  /opt/spire/bin/spire-server entry show \
+  -spiffeID spiffe://demo.local/ns/kube-system/sa/cilium
+```
+
+**Entry 2: Cilium Operator**
+
+```bash
+# Create registration entry for operator
+kubectl exec -n spire-system spire-server-0 -c spire-server -- \
+  /opt/spire/bin/spire-server entry create \
+  -spiffeID spiffe://demo.local/ns/kube-system/sa/cilium-operator \
+  -parentID spiffe://demo.local/spire/agent/k8s_psat/precinct-99/${NODE_NAME} \
+  -selector k8s:ns:kube-system \
+  -selector k8s:sa:cilium-operator \
+  -ttl 3600
+
+# Verify entry was created
+kubectl exec -n spire-system spire-server-0 -c spire-server -- \
+  /opt/spire/bin/spire-server entry show \
+  -spiffeID spiffe://demo.local/ns/kube-system/sa/cilium-operator
+```
+
+**Expected output:** Both commands should return "Entry ID: <uuid>" confirming creation.
+
+**Note:** You may need to create entries for each node in the cluster if you have multiple nodes. Alternatively, use a wildcard parentID approach (documented in CILIUM_SPIRE_INTEGRATION.md).
+
+#### Step 3: Upgrade Cilium with SPIFFE Integration (10 minutes)
+
+**Command:**
+
+```bash
+helm upgrade cilium cilium/cilium \
+  --version 1.15.7 \
+  --namespace kube-system \
+  -f infrastructure/cilium/values.yaml \
+  --wait \
+  --timeout 5m
+```
+
+**What happens:**
+- Cilium DaemonSet will restart with new configuration
+- Each Cilium agent pod will mount `/run/spire/admin-sockets` from host
+- Cilium will attempt to connect to SPIRE Delegated Identity API
+
+**Monitor the upgrade:**
+
+```bash
+# Watch pod restarts
+kubectl get pods -n kube-system -l k8s-app=cilium -w
+
+# Check Cilium status (wait for restart to complete)
+cilium status
+```
+
+**Expected result:**
+- All Cilium pods restart successfully
+- No more "admin socket does not exist" errors
+- Cilium status shows SPIFFE integration details
+
+#### Step 4: Verify SPIRE Integration (5 minutes)
+
+**Verification Commands:**
+
+```bash
+# 1. Check Cilium can access admin socket
+kubectl exec -n kube-system ds/cilium -c cilium-agent -- \
+  ls -la /run/spire/admin-sockets/
+
+# Expected: Should show admin.sock file
+
+# 2. Check Cilium status for SPIFFE integration
+kubectl exec -n kube-system ds/cilium -c cilium-agent -- cilium-dbg status | grep -i spiffe
+
+# Expected: Should show SPIFFE-related status (not "disabled")
+
+# 3. Check Cilium logs for SPIRE connection
+kubectl logs -n kube-system -l k8s-app=cilium --tail=50 | grep -i spire
+
+# Expected: Should show successful connection messages, NOT socket errors
+
+# 4. Verify SPIRE entries are being used
+kubectl exec -n spire-system spire-server-0 -c spire-server -- \
+  /opt/spire/bin/spire-server entry show
+
+# Expected: Should list the cilium and cilium-operator entries
+```
+
+#### Step 5: Test Application Functionality (5 minutes)
+
+**Critical:** Ensure the changes didn't break existing functionality.
+
+```bash
+# 1. Test frontend health
+curl -s http://localhost:3000/api/health/ready | jq .
+
+# Expected: {"status":"ready",...}
+
+# 2. Test login flow
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"jake","password":"jake-precinct99"}' \
+  -s | jq -r '.message'
+
+# Expected: "Login successful"
+
+# 3. Check all pods are healthy
+kubectl get pods -n 99-apps
+kubectl get pods -n spire-system
+kubectl get pods -n kube-system -l k8s-app=cilium
+
+# Expected: All pods Running with 1/1 or appropriate Ready status
+```
+
+#### Step 6: (Optional) Observe mTLS with Hubble
+
+**If time permits, verify that mTLS handshakes are visible:**
+
+```bash
+# Install Hubble CLI if not already installed
+# Follow: https://docs.cilium.io/en/stable/gettingstarted/hubble_setup/
+
+# Observe traffic between frontend and backend
+kubectl exec -n kube-system ds/cilium -- \
+  hubble observe --from-label app=frontend --to-label app=backend --last 20
+
+# Look for TLS handshake indicators and SPIFFE IDs in output
+```
+
+### 📋 Troubleshooting Guide for Remaining Steps
+
+**If Cilium pods fail to start:**
+1. Check logs: `kubectl logs -n kube-system <cilium-pod> -c cilium-agent`
+2. Verify admin socket path matches in both SPIRE agent and Cilium config
+3. Ensure SPIRE agents are running: `kubectl get pods -n spire-system`
+
+**If "admin socket does not exist" persists:**
+1. Verify socket was created: `kubectl exec -n spire-system ds/spire-agent -- ls -la /run/spire/admin-sockets/`
+2. Check SPIRE agent config was applied: `kubectl get configmap -n spire-system spire-agent -o yaml | grep admin_socket`
+3. Verify hostPath mount in Cilium DaemonSet
+
+**If SPIRE entry creation fails:**
+1. Check SPIRE server logs: `kubectl logs -n spire-system spire-server-0 -c spire-server --tail=50`
+2. Verify service accounts exist: `kubectl get sa -n kube-system cilium cilium-operator`
+3. Check parentID format matches your cluster name (precinct-99)
+
+**If application stops working:**
+1. Revert Cilium upgrade: `helm rollback cilium -n kube-system`
+2. Check network policies aren't blocking traffic prematurely
+3. Verify backend is still ClusterIP only (from Phase 4B)
+
+### 📚 Reference Documentation
+
+- **Comprehensive Guide:** `docs/CILIUM_SPIRE_INTEGRATION.md` (200+ pages)
+  - Section 5: Step-by-Step Implementation (detailed walkthrough)
+  - Section 7: Common Issues and Troubleshooting
+- **Diagnostic Script:** `scripts/helpers/diagnose-cilium-spire.sh`
+- **Phase 4C Planning:** `docs/sprint-4-integration.md` lines 320-444
 
 ### 🧪 Testing Results (Partial)
 
