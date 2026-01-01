@@ -31,7 +31,11 @@ data:
         plugin_data {
           clusters = {
             "precinct-99" = {
-              service_account_allow_list = ["spire-system:spire-agent"]
+              service_account_allow_list = [
+                "spire-system:spire-agent",
+                "kube-system:cilium",
+                "kube-system:cilium-operator"
+              ]
             }
           }
         }

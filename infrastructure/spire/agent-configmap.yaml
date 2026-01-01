@@ -13,6 +13,11 @@ data:
       socket_path = "/run/spire/sockets/agent.sock"
       trust_domain = "demo.local"
       trust_bundle_path = "/run/spire/bundle/bundle.crt"
+
+      # Delegated Identity API for Cilium integration
+      # Must be in different directory than workload socket (security requirement)
+      admin_socket_path = "/run/spire/admin-sockets/admin.sock"
+      authorized_delegates = ["spiffe://demo.local/ns/kube-system/sa/cilium"]
     }
 
     plugins {
