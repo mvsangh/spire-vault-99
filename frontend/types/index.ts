@@ -47,7 +47,7 @@ export interface GitHubUser {
 }
 
 export interface GitHubConfigureRequest {
-  token: string;
+  github_token: string;
 }
 
 // Health check types

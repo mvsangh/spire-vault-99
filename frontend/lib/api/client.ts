@@ -61,7 +61,7 @@ export const authAPI = {
 // GitHub API (paths updated to match Next.js API routes)
 export const githubAPI = {
   configure: async (token: string): Promise<{ message: string }> => {
-    const data: GitHubConfigureRequest = { token };
+    const data: GitHubConfigureRequest = { github_token: token };
     const response = await apiClient.post('/github/configure', data);
     return response.data;
   },
