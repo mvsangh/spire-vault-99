@@ -91,10 +91,11 @@ kubectl exec -n openbao deploy/openbao -- \
   bao write database/roles/backend-role \
     db_name=postgresql \
     creation_statements="CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}' INHERIT; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO \"{{name}}\"; GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO \"{{name}}\";" \
+    revocation_statements="SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename = '{{name}}'; DROP ROLE IF EXISTS \"{{name}}\";" \
     default_ttl="1h" \
     max_ttl="2h"
 
-echo -e "${GREEN}✅ Database role created${NC}"
+echo -e "${GREEN}✅ Database role created with proper revocation statements${NC}"
 
 # Step 8: Create Backend Policy
 echo ""

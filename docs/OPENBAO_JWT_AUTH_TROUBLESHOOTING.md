@@ -486,3 +486,124 @@ Backend is working correctly when:
 **Last Updated:** 2026-01-01
 **Tested With:** OpenBao 2.0.1, SPIRE 1.x, Kubernetes 1.x
 **Related Docs:** `docs/QUICKSTART_DEPLOYMENT.md`, `docs/OPENBAO_TLS_SETUP.md`
+
+---
+
+## Issue 6: Database Credential Revocation Failures
+
+### Symptoms
+
+Backend logs show repeated revocation errors during credential rotation:
+
+```
+❌ Failed to revoke lease database/creds/backend-role/...: failed to revoke entry
+ERROR: role "v-jwt-spif-backend--..." cannot be dropped because some objects depend on it (SQLSTATE 2BP01)
+```
+
+**Frequency:** Every 90 seconds (credential rotation interval)
+
+**Impact:**
+- Credential rotation still **succeeds** (new credentials work)
+- Old credentials accumulate in database until TTL expires (1 hour)  
+- Not a critical issue but clutters logs and database with orphaned roles
+
+### Root Cause
+
+**Missing `revocation_statements` in OpenBao database role configuration.**
+
+When OpenBao revokes a PostgreSQL dynamic credential, it attempts to:
+```sql
+DROP ROLE "{{name}}";  -- Default statement
+```
+
+This **fails** when:
+1. Backend created new connection pool with new credentials ✅
+2. Old connection pool disposed ✅  
+3. PostgreSQL still has **active connections** from old role ❌
+4. DROP ROLE fails with `SQLSTATE 2BP01` - dependent objects exist
+
+**Why connections persist:**
+- SQLAlchemy's `engine.dispose()` is asynchronous
+- PostgreSQL backend processes don't terminate immediately
+- Revocation happens too quickly after pool disposal
+
+### Resolution
+
+Add custom `revocation_statements` that **terminate connections before dropping the role**:
+
+#### Option 1: Re-run Configuration Script (Recommended)
+
+```bash
+# The updated script includes proper revocation statements
+./scripts/helpers/configure-openbao-jwt.sh
+```
+
+#### Option 2: Manual Fix
+
+```bash
+# Get root token
+ROOT_TOKEN=$(jq -r '.root_token' openbao-init-keys.json)
+
+# Update database role with revocation statements  
+kubectl exec -n openbao deploy/openbao -- \
+  env BAO_ADDR=https://127.0.0.1:8200 BAO_SKIP_VERIFY=true BAO_TOKEN="$ROOT_TOKEN" \
+  bao write database/roles/backend-role \
+    db_name=postgresql \
+    creation_statements="CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}' INHERIT; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO \"{{name}}\"; GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO \"{{name}}\";" \
+    revocation_statements="SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename = '{{name}}'; DROP ROLE IF EXISTS \"{{name}}\";" \
+    default_ttl="1h" \
+    max_ttl="2h"
+```
+
+**What the revocation statements do:**
+1. `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename = '{{name}}'`
+   - Finds all active PostgreSQL connections for the role
+   - Terminates them forcefully
+2. `DROP ROLE IF EXISTS "{{name}}"`
+   - Drops the role (now safe since no connections exist)
+   - `IF EXISTS` prevents errors if role already dropped
+
+### Verification
+
+After applying the fix, wait for next credential rotation (90 seconds) and check logs:
+
+```bash
+kubectl logs -n 99-apps deploy/backend --tail=20 | grep -E "rotation|revoke"
+```
+
+**Before fix:**
+```
+✅ Credential rotation completed successfully
+❌ Failed to revoke lease database/creds/backend-role/...
+```
+
+**After fix:**
+```
+✅ Credential rotation completed successfully  
+✅ Old lease revoked: database...
+```
+
+### Additional Notes
+
+**Why not fix in backend code?**
+- The backend is correctly disposing the connection pool
+- The issue is PostgreSQL-specific behavior with active connections
+- The proper fix is in OpenBao's database configuration (where role lifecycle is managed)
+
+**Production Considerations:**
+- This is **critical for production** to avoid role accumulation
+- Without proper revocation, old roles persist until TTL expiration
+- Can lead to:  
+  - Cluttered `pg_roles` table
+  - Audit/compliance issues (orphaned credentials)
+  - Potential security risk if TTL is long
+
+**Related Error Codes:**
+- `SQLSTATE 2BP01` - Dependent objects still exist
+- `SQLSTATE 55006` - Object in use by another user
+
+---
+
+**Last Updated:** 2026-01-02  
+**Issue Severity:** Medium (functional rotation works, cleanup fails)  
+**Fix Difficulty:** Easy (one-line configuration change)
