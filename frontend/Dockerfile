@@ -22,7 +22,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
 # Build the application
-RUN npm run build
+RUN mkdir -p public && npm run build
 
 # Stage 3: Runner
 FROM node:20-alpine AS runner

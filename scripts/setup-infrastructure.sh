@@ -145,6 +145,11 @@ deploy_spire() {
     log_info "Deploying SPIRE Server..."
     kubectl apply -f infrastructure/spire/server-account.yaml
     kubectl apply -f infrastructure/spire/server-configmap.yaml
+    kubectl apply -f infrastructure/spire/oidc-discovery-configmap.yaml
+
+    log_info "Creating spire-bundle ConfigMap (required by k8sbundle notifier)..."
+    kubectl create configmap spire-bundle -n spire-system 2>/dev/null || log_warning "spire-bundle already exists"
+
     kubectl apply -f infrastructure/spire/server-statefulset.yaml
     kubectl apply -f infrastructure/spire/server-service.yaml
 

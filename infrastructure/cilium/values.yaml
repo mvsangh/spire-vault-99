@@ -1,0 +1,33 @@
+# Cilium Helm values for kind cluster (precinct-99)
+kubeProxyReplacement: false
+
+hostServices:
+  enabled: false
+
+externalIPs:
+  enabled: true
+
+nodePort:
+  enabled: true
+
+hostPort:
+  enabled: true
+
+image:
+  pullPolicy: IfNotPresent
+
+ipam:
+  mode: kubernetes
+
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+
+# SPIFFE/SPIRE integration (ready for Sprint 4)
+authentication:
+  mutual:
+    spiffe:
+      enabled: false

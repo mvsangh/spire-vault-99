@@ -67,10 +67,11 @@ spec:
     matchLabels:
       app: openbao
   ingress:
-  # Allow all pods from 99-apps namespace
+  # Allow only backend pod from 99-apps namespace
   - fromEndpoints:
     - matchLabels:
         k8s:io.kubernetes.pod.namespace: 99-apps
+        app: backend
     toPorts:
     - ports:
       - port: "8200"

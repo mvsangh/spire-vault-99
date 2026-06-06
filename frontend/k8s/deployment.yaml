@@ -20,8 +20,8 @@ spec:
       serviceAccountName: frontend
       containers:
       - name: frontend
-        image: localhost/frontend:latest
-        imagePullPolicy: Never  # Use local image from kind
+        image: frontend:dev
+        imagePullPolicy: Never
         ports:
         - containerPort: 3000
           name: http

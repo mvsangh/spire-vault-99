@@ -1,4 +1,4 @@
-# Tiltfile for SPIRE-Vault-99 Backend Development
+# Tiltfile for SPIRE-Vault-99 Development
 # Enables hot-reload development with real SPIRE, Vault, and PostgreSQL
 
 # Build Docker image with live update
@@ -18,44 +18,43 @@ docker_build(
     ]
 )
 
-# Load Kubernetes manifests
+# --- Backend ---
 k8s_yaml('backend/k8s/serviceaccount.yaml')
 k8s_yaml('backend/k8s/configmap.yaml')
 k8s_yaml('backend/k8s/deployment.yaml')
 k8s_yaml('backend/k8s/service.yaml')
 
-# Configure backend resource
 k8s_resource(
     'backend',
-    port_forwards=[
-        '8000:8000',  # API
-    ],
+    port_forwards=['8000:8000'],
+    labels=['app'],
+)
+
+# --- Frontend ---
+docker_build(
+    'frontend:dev',
+    context='./frontend',
+    dockerfile='./frontend/Dockerfile',
+)
+
+k8s_yaml('frontend/k8s/serviceaccount.yaml')
+k8s_yaml('frontend/k8s/configmap.yaml')
+k8s_yaml('frontend/k8s/deployment.yaml')
+k8s_yaml('frontend/k8s/service.yaml')
+
+k8s_resource(
+    'frontend',
+    port_forwards=['3000:3000'],
     labels=['app'],
 )
 
 # Display startup message
 print("""
-🚀 SPIRE-Vault-99 Backend Development
+SPIRE-Vault-99 Development Environment
 
-Tiltfile ready for hot-reload development!
+  Backend API:   http://localhost:8000
+  Backend docs:  http://localhost:8000/docs
+  Frontend:      http://localhost:3000
 
-Usage:
-  tilt up              # Start development environment
-  tilt down            # Stop and clean up
-
-The backend will be available at:
-  http://localhost:8000           # API root
-  http://localhost:8000/docs      # Swagger UI
-  http://localhost:8000/redoc     # ReDoc
-
-Test endpoints:
   curl http://localhost:8000/api/v1/health
-  curl http://localhost:8000/api/v1/health/ready
-
-Hot-reload enabled:
-  - Edit Python files in backend/app/
-  - Changes sync automatically (~2 seconds)
-  - uvicorn restarts automatically
-
-Note: Ensure cluster is running with SPIRE, Vault, and PostgreSQL deployed!
 """)

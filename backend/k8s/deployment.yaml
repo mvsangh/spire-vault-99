@@ -18,8 +18,8 @@ spec:
       serviceAccountName: backend
       containers:
       - name: backend
-        image: spire-vault-99/backend:v4  # Single worker for demo with credential rotation
-        imagePullPolicy: IfNotPresent
+        image: backend:dev
+        imagePullPolicy: Never
         ports:
         - containerPort: 8000
           name: http
@@ -35,10 +35,6 @@ spec:
         - name: spire-agent-socket
           mountPath: /run/spire/sockets
           readOnly: true
-        - name: vault-ca
-          mountPath: /vault/tls
-          readOnly: true
-
         # Health probes
         livenessProbe:
           httpGet:
@@ -73,9 +69,3 @@ spec:
         hostPath:
           path: /run/spire/sockets
           type: DirectoryOrCreate
-      - name: vault-ca
-        configMap:
-          name: vault-ca
-          items:
-          - key: ca.crt
-            path: ca.crt

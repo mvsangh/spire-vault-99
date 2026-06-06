@@ -1,8 +1,8 @@
 # Binaries and executables
-cilium
-kubectl
-kind
-helm
+/cilium
+/kubectl
+/kind
+/helm
 
 # Archives and downloads
 *.tar.gz

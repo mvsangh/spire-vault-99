@@ -165,11 +165,12 @@ class VaultClient:
 
         # Check if the token is still valid (not expired)
         auth_info = self._client.auth.token.lookup_self()
-        if 'errors' in auth_info or auth_info.get('data', {}).get('expire_time') is None:
+        if 'errors' in auth_info:
             logger.warning("Vault token is invalid or expired")
             self._authenticated = False
             return False
 
+        # None expire_time means a root/non-expiring token — valid in dev mode
         return True
 
     async def close(self) -> None:
@@ -285,12 +286,16 @@ class VaultClient:
         Re-authenticates if token is expired or missing.
         """
         if self.is_authenticated():
-            # Token is still valid
             return
 
-        # Token is expired or missing - re-authenticate
         logger.info("🔄 Vault token expired or missing, re-authenticating...")
-        await self._authenticate_with_jwt()
+        is_https = self.vault_addr.startswith('https://')
+        if is_https:
+            await self._authenticate_with_jwt()
+        else:
+            self._client.token = 'root'
+            self._authenticated = True
+            logger.info("✅ Vault re-authenticated (dev mode root token)")
         logger.info("✅ Vault re-authentication successful")
 
 
