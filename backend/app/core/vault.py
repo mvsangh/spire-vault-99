@@ -1,10 +1,12 @@
 """
 Vault (OpenBao) client for secrets management.
-Authenticates using SPIRE JWT-SVID via JWT auth method.
+Authenticates using SPIRE X.509-SVID via cert auth (mTLS) in HTTPS mode,
+with JWT-SVID auth as an alternative, and root token in HTTP dev mode.
 """
 
 import asyncio
 import logging
+import os
 import tempfile
 from typing import Dict, Any, Optional
 import hvac
@@ -30,8 +32,10 @@ class VaultClient:
         self.db_role = settings.VAULT_DB_ROLE
         self._client: Optional[hvac.Client] = None
         self._authenticated = False
+        self.auth_method = settings.VAULT_AUTH_METHOD
         self._jwt_audiences: Optional[list] = None
         self._verify_param = None
+        self._cert_dir: Optional[str] = None  # tmpfs dir holding SVID cert/key for mTLS
         self._refresh_task: Optional[asyncio.Task] = None
         logger.info(f"Vault client initialized - Address: {self.vault_addr}")
 
@@ -44,16 +48,12 @@ class VaultClient:
             is_https = self.vault_addr.startswith('https://')
 
             if is_https:
-                # Production mode: Use JWT authentication with SPIRE JWT-SVID
-                logger.info("Connecting to Vault with SPIRE JWT-SVID (JWT auth)...")
-
-                # Store JWT audiences for later refresh
+                # Production mode: SPIRE-issued identity over TLS
+                # Store JWT audiences in case JWT auth is selected or used as fallback
                 from app.config import settings
                 self._jwt_audiences = settings.JWT_SVID_AUDIENCE
 
-                # Create Vault client (HTTPS)
-                # Note: We can still verify TLS even without using cert auth
-                import os
+                # Resolve CA certificate for server TLS verification
                 vault_ca_path = None
                 if self.vault_cacert:
                     # Resolve symlink to actual file (ConfigMap mounts use symlinks)
@@ -69,18 +69,25 @@ class VaultClient:
 
                 # Store verify param for later refresh
                 self._verify_param = vault_ca_path if vault_ca_path else False
+                if not vault_ca_path:
+                    logger.warning("⚠️  VAULT_CACERT not set - server TLS verification disabled")
 
-                self._client = hvac.Client(
-                    url=self.vault_addr,
-                    verify=self._verify_param
-                )
+                if self.auth_method == 'cert':
+                    # mTLS: authenticate with SPIRE X.509-SVID as client certificate
+                    logger.info("Connecting to Vault with SPIRE X.509-SVID (cert auth / mTLS)...")
+                    await self._authenticate_with_cert()
+                else:
+                    # JWT auth: SPIRE JWT-SVID over server-auth TLS
+                    logger.info("Connecting to Vault with SPIRE JWT-SVID (JWT auth)...")
+                    self._client = hvac.Client(
+                        url=self.vault_addr,
+                        verify=self._verify_param
+                    )
+                    await self._authenticate_with_jwt()
 
-                # Perform initial JWT authentication
-                await self._authenticate_with_jwt()
-
-                # Start background task to refresh JWT-SVID and re-authenticate
-                self._refresh_task = asyncio.create_task(self._jwt_refresh_loop())
-                logger.info("🔄 Started JWT-SVID refresh background task")
+                # Start background task to refresh SVID and re-authenticate
+                self._refresh_task = asyncio.create_task(self._auth_refresh_loop())
+                logger.info(f"🔄 Started {self.auth_method} auth refresh background task")
 
             else:
                 # Dev mode (HTTP): Use token auth for local development
@@ -103,6 +110,62 @@ class VaultClient:
         except Exception as e:
             logger.error(f"❌ Failed to authenticate to Vault: {e}")
             raise
+
+    def _write_svid_material(self) -> tuple[str, str]:
+        """
+        Fetch a fresh X.509-SVID from SPIRE and write cert chain + private key
+        to files with restrictive permissions (hvac/requests require file paths
+        for client certificates).
+
+        Returns:
+            Tuple of (cert_path, key_path)
+        """
+        # Always refresh - SVIDs have a 1-hour TTL and re-auth may happen
+        # long after the initial fetch
+        spire_client.refresh_svid()
+
+        if self._cert_dir is None:
+            self._cert_dir = tempfile.mkdtemp(prefix='svid-')
+            os.chmod(self._cert_dir, 0o700)
+
+        cert_path = os.path.join(self._cert_dir, 'svid.crt')
+        key_path = os.path.join(self._cert_dir, 'svid.key')
+
+        # Write key first with 0600 before content lands on disk
+        for path, data in ((cert_path, spire_client.get_certificate_pem()),
+                           (key_path, spire_client.get_private_key_pem())):
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, 'wb') as f:
+                f.write(data)
+
+        return cert_path, key_path
+
+    async def _authenticate_with_cert(self) -> None:
+        """
+        Authenticate to Vault using SPIRE X.509-SVID via cert auth (mTLS).
+        Recreates the hvac client so the TLS session presents the fresh
+        client certificate. Can be called for initial auth or re-authentication.
+        """
+        cert_path, key_path = self._write_svid_material()
+
+        # New client per login - requests pins the client cert at session
+        # level, so a rotated SVID requires a fresh session
+        self._client = hvac.Client(
+            url=self.vault_addr,
+            cert=(cert_path, key_path),
+            verify=self._verify_param
+        )
+
+        auth_response = self._client.auth.cert.login(name='backend-role')
+
+        self._authenticated = True
+        ttl = auth_response['auth']['lease_duration']
+        logger.info(f"✅ Vault authenticated (cert/mTLS) - Token TTL: {ttl}s ({ttl//60} minutes)")
+        logger.info(f"   Vault policies: {auth_response['auth']['policies']}")
+        logger.info(f"   SPIFFE ID: {spire_client.get_spiffe_id()}")
+
+        if not self._client.is_authenticated():
+            raise RuntimeError("Cert authentication succeeded but Vault client is not authenticated")
 
     async def _authenticate_with_jwt(self) -> None:
         """
@@ -128,10 +191,11 @@ class VaultClient:
         if not self._client.is_authenticated():
             raise RuntimeError("JWT authentication succeeded but Vault client is not authenticated")
 
-    async def _jwt_refresh_loop(self) -> None:
+    async def _auth_refresh_loop(self) -> None:
         """
-        Background task that refreshes JWT-SVID and re-authenticates to Vault.
-        Runs every 45 minutes to stay safely ahead of 1-hour JWT-SVID TTL.
+        Background task that refreshes the SVID and re-authenticates to Vault.
+        Runs every 45 minutes to stay safely ahead of the 1-hour SVID TTL
+        (both X.509-SVID for cert auth and JWT-SVID for JWT auth).
         """
         refresh_interval = 2700  # 45 minutes in seconds (1800s for 30min if needed)
 
@@ -139,18 +203,20 @@ class VaultClient:
             try:
                 await asyncio.sleep(refresh_interval)
 
-                logger.info("⏰ Starting JWT-SVID refresh and Vault re-authentication...")
+                logger.info(f"⏰ Starting SVID refresh and Vault re-authentication ({self.auth_method})...")
 
-                # Re-authenticate with fresh JWT-SVID
-                await self._authenticate_with_jwt()
+                if self.auth_method == 'cert':
+                    await self._authenticate_with_cert()
+                else:
+                    await self._authenticate_with_jwt()
 
-                logger.info("✅ JWT-SVID refresh completed successfully")
+                logger.info("✅ SVID refresh completed successfully")
 
             except asyncio.CancelledError:
-                logger.info("JWT refresh task cancelled")
+                logger.info("Auth refresh task cancelled")
                 break
             except Exception as e:
-                logger.error(f"❌ JWT refresh failed: {e}")
+                logger.error(f"❌ Auth refresh failed: {e}")
                 logger.warning("⚠️  Will retry at next interval")
                 # Don't break - keep trying at next interval
 
@@ -182,6 +248,12 @@ class VaultClient:
             except asyncio.CancelledError:
                 pass
             logger.info("Vault refresh task stopped")
+
+        # Remove SVID material written for mTLS
+        if self._cert_dir and os.path.isdir(self._cert_dir):
+            import shutil
+            shutil.rmtree(self._cert_dir, ignore_errors=True)
+            self._cert_dir = None
 
     async def write_secret(self, path: str, data: Dict[str, Any]) -> None:
         """
@@ -291,7 +363,10 @@ class VaultClient:
         logger.info("🔄 Vault token expired or missing, re-authenticating...")
         is_https = self.vault_addr.startswith('https://')
         if is_https:
-            await self._authenticate_with_jwt()
+            if self.auth_method == 'cert':
+                await self._authenticate_with_cert()
+            else:
+                await self._authenticate_with_jwt()
         else:
             self._client.token = 'root'
             self._authenticated = True

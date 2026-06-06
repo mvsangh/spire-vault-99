@@ -150,17 +150,16 @@ fi
 
 echo -e "${GREEN}✅ SPIRE trust bundle fetched${NC}"
 
-# Copy bundle to OpenBao pod
-kubectl cp /tmp/spire-bundle.crt openbao/$(kubectl get pod -n openbao -l app=openbao -o jsonpath='{.items[0].metadata.name}'):/tmp/bundle.crt
-
 # Configure cert auth role for backend
+# Note: pod has readOnlyRootFilesystem - pass the bundle inline, not via kubectl cp
 echo -e "${BLUE}Configuring backend-role for cert auth...${NC}"
+
+SPIRE_BUNDLE="$(cat /tmp/spire-bundle.crt)"
 
 kubectl exec -n openbao deploy/openbao -- \
     env BAO_ADDR="${BAO_ADDR}" BAO_SKIP_VERIFY=true BAO_TOKEN="${BAO_TOKEN}" \
     bao write auth/cert/certs/backend-role \
-    certificate=@/tmp/bundle.crt \
-    allowed_common_names="spiffe://demo.local/ns/99-apps/sa/backend" \
+    certificate="${SPIRE_BUNDLE}" \
     allowed_uri_sans="spiffe://demo.local/ns/99-apps/sa/backend" \
     token_policies="backend-policy" \
     token_ttl=3600 \
@@ -242,32 +241,31 @@ echo -e "${GREEN}✅ Database role created${NC}"
 #
 echo -e "\n${BLUE}📋 Step 10: Creating Backend Policy${NC}"
 
-kubectl exec -n openbao deploy/openbao -- sh -c "cat > /tmp/backend-policy.hcl <<'EOF'
+# Pod has readOnlyRootFilesystem - pipe the policy via stdin
+kubectl exec -i -n openbao deploy/openbao -- \
+    env BAO_ADDR="${BAO_ADDR}" BAO_SKIP_VERIFY=true BAO_TOKEN="${BAO_TOKEN}" \
+    bao policy write backend-policy - <<'EOF'
 # Backend policy - allows access to secrets and database credentials
 
 # Read/write access to KV v2 secrets (GitHub tokens)
-path \"secret/data/*\" {
-  capabilities = [\"create\", \"read\", \"update\", \"delete\", \"list\"]
+path "secret/data/*" {
+  capabilities = ["create", "read", "update", "delete", "list"]
 }
 
-path \"secret/metadata/*\" {
-  capabilities = [\"list\", \"read\", \"delete\"]
+path "secret/metadata/*" {
+  capabilities = ["list", "read", "delete"]
 }
 
 # Generate database credentials
-path \"database/creds/backend-role\" {
-  capabilities = [\"read\"]
+path "database/creds/backend-role" {
+  capabilities = ["read"]
 }
 
 # Renew own token
-path \"auth/token/renew-self\" {
-  capabilities = [\"update\"]
+path "auth/token/renew-self" {
+  capabilities = ["update"]
 }
-EOF"
-
-kubectl exec -n openbao deploy/openbao -- \
-    env BAO_ADDR="${BAO_ADDR}" BAO_SKIP_VERIFY=true BAO_TOKEN="${BAO_TOKEN}" \
-    bao policy write backend-policy /tmp/backend-policy.hcl
+EOF
 
 echo -e "${GREEN}✅ Backend policy created${NC}"
 

@@ -136,6 +136,16 @@ spec:
     - ports:
       - port: "8081"
         protocol: TCP
+  # SPIRE agents run with hostNetwork - their traffic carries host/remote-node
+  # entity identity, not a pod namespace identity. Without this, agents on
+  # nodes other than the server's node are blocked.
+  - fromEntities:
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "8081"
+        protocol: TCP
   # Allow all pods from application namespace (for JWT-SVID fetching)
   - fromEndpoints:
     - matchLabels:

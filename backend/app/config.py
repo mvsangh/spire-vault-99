@@ -49,6 +49,8 @@ class Settings(BaseSettings):
         "http://openbao.openbao.svc.cluster.local:8200"
     )
     VAULT_CACERT: Optional[str] = os.getenv("VAULT_CACERT")  # Path to CA certificate for TLS verification
+    # Auth method when VAULT_ADDR is HTTPS: "cert" (X.509-SVID mTLS) or "jwt" (JWT-SVID)
+    VAULT_AUTH_METHOD: str = os.getenv("VAULT_AUTH_METHOD", "cert")
     VAULT_NAMESPACE: Optional[str] = None
     VAULT_KV_PATH: str = "secret"  # KV v2 mount path
     VAULT_DB_PATH: str = "database"  # Database secrets engine path

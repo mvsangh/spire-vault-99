@@ -192,6 +192,14 @@ kubectl create secret generic openbao-tls \
 
 echo -e "${GREEN}✅ Secret 'openbao-tls' created in namespace 'openbao'${NC}"
 
+# Create CA ConfigMap in 99-apps so the backend can verify OpenBao's server cert
+kubectl delete configmap -n 99-apps openbao-ca 2>/dev/null || true
+kubectl create configmap openbao-ca \
+    -n 99-apps \
+    --from-file=ca.crt="${CERT_DIR}/${CA_CERT}"
+
+echo -e "${GREEN}✅ ConfigMap 'openbao-ca' created in namespace '99-apps'${NC}"
+
 #
 # Step 4: Save CA certificate for backend configuration
 #

@@ -19,9 +19,11 @@ data:
   # JWT-SVID Configuration for Vault Authentication
   JWT_SVID_AUDIENCE: "openbao,vault"  # Comma-separated list of audiences
 
-  # Vault (OpenBao) - dev mode HTTP
-  VAULT_ADDR: "http://openbao.openbao.svc.cluster.local:8200"
-  VAULT_CACERT: ""
+  # Vault (OpenBao) - TLS mode with X.509-SVID cert auth (mTLS)
+  # For HTTP dev mode use: VAULT_ADDR=http://..., VAULT_CACERT=""
+  VAULT_ADDR: "https://openbao.openbao.svc.cluster.local:8200"
+  VAULT_CACERT: "/etc/vault-tls/ca.crt"
+  VAULT_AUTH_METHOD: "cert"  # "cert" (X.509-SVID mTLS) or "jwt" (JWT-SVID)
   VAULT_KV_PATH: "secret"
   VAULT_DB_PATH: "database"
   VAULT_DB_ROLE: "backend-role"

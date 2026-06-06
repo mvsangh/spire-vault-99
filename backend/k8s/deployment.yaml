@@ -35,6 +35,9 @@ spec:
         - name: spire-agent-socket
           mountPath: /run/spire/sockets
           readOnly: true
+        - name: vault-ca
+          mountPath: /etc/vault-tls
+          readOnly: true
         # Health probes
         livenessProbe:
           httpGet:
@@ -69,3 +72,7 @@ spec:
         hostPath:
           path: /run/spire/sockets
           type: DirectoryOrCreate
+      - name: vault-ca
+        configMap:
+          name: openbao-ca
+          optional: true  # Absent in HTTP dev mode

@@ -60,6 +60,23 @@ class SPIREClient:
             self._client.close()
             logger.info("SPIRE client closed")
 
+    def refresh_svid(self) -> X509Svid:
+        """
+        Fetch a fresh X.509-SVID from the SPIRE agent.
+        Call before mTLS re-authentication - SVIDs have a 1-hour TTL and the
+        cached SVID from connect() will eventually expire.
+
+        Returns:
+            Freshly fetched X.509-SVID
+        """
+        if not self._client:
+            raise RuntimeError("SPIRE client not connected - call connect() first")
+
+        self._svid = self._client.fetch_x509_svid()
+        self._spiffe_id = self._svid.spiffe_id
+        logger.info(f"🔄 X.509-SVID refreshed - SPIFFE ID: {self._spiffe_id}")
+        return self._svid
+
     def get_svid(self) -> X509Svid:
         """
         Get current X.509-SVID.
