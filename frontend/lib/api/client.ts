@@ -9,6 +9,9 @@ import type {
   GitHubConfigureRequest,
   HealthResponse,
   APIError,
+  DemoScenarioMeta,
+  ScenarioResult,
+  RotationResult,
 } from '@/types';
 
 // API URL now points to Next.js API routes (same origin, no CORS)
@@ -81,6 +84,22 @@ export const githubAPI = {
 export const healthAPI = {
   check: async (): Promise<HealthResponse> => {
     const response = await apiClient.get<HealthResponse>('/health/ready');
+    return response.data;
+  },
+};
+
+// Demo / security scenarios API
+export const demoAPI = {
+  listScenarios: async (): Promise<{ scenarios: DemoScenarioMeta[] }> => {
+    const response = await apiClient.get('/demo/scenarios');
+    return response.data;
+  },
+  runScenario: async (scenarioId: string): Promise<ScenarioResult> => {
+    const response = await apiClient.get<ScenarioResult>(`/demo/run/${scenarioId}`);
+    return response.data;
+  },
+  rotateCredentials: async (): Promise<RotationResult> => {
+    const response = await apiClient.post<RotationResult>('/demo/rotate-credentials');
     return response.data;
   },
 };

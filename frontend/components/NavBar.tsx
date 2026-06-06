@@ -70,6 +70,13 @@ export default function NavBar() {
               >
                 GitHub
               </Button>
+              <Button
+                color="inherit"
+                component={Link}
+                href="/demo"
+              >
+                Security Demo
+              </Button>
 
               <Box>
                 <IconButton

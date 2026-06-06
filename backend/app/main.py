@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.api.v1 import health, auth, github
+from app.api.v1 import health, auth, github, demo
 from app.core.spire import spire_client
 from app.core.vault import vault_client
 from app.core.database import db_manager
@@ -135,6 +135,7 @@ app.add_middleware(
 app.include_router(health.router, prefix="/api/v1", tags=["health"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["authentication"])
 app.include_router(github.router, prefix="/api/v1/github", tags=["github"])
+app.include_router(demo.router, prefix="/api/v1", tags=["demo"])
 
 # Root endpoint
 @app.get("/")

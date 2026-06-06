@@ -64,3 +64,31 @@ export interface APIError {
   detail: string;
   status?: number;
 }
+
+// Demo / security scenario types
+export interface DemoScenarioMeta {
+  id: string;
+  title: string;
+  description: string;
+  expected: 'allowed' | 'blocked';
+  category: 'allowed' | 'blocked';
+}
+
+export interface ScenarioResult {
+  scenario: string;
+  title: string;
+  description: string;
+  status: 'allowed' | 'blocked' | 'error';
+  detail: string;
+  expected: 'allowed' | 'blocked';
+  policy_enforced: boolean;
+  extra?: Record<string, unknown>;
+}
+
+export interface RotationResult {
+  old_username: string;
+  new_username: string;
+  old_lease_id: string;
+  new_lease_id: string;
+  rotation_duration_ms: number;
+}
